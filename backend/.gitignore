@@ -1,0 +1,63 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Build output
+# =========================
+dist/
+build/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# TypeScript cache
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Coverage / testing
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# Runtime data
+# =========================
+tmp/
+temp/
+
+# =========================
+# ngrok / tunnel configs
+# =========================
+.ngrok2/
+.ngrok/
+
+# =========================
+# Database / local data
+# =========================
+*.sqlite
+*.sqlite3
