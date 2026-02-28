@@ -1,5 +1,7 @@
 export type BookingState =
   | 'idle'
+  | 'booking_category'
+  | 'booking_doctor'
   | 'booking_date'
   | 'booking_time'
   | 'booking_reason'
@@ -7,6 +9,8 @@ export type BookingState =
 interface Session {
   state: BookingState
   data: {
+    category?: string
+    doctor?: string
     date?: string
     time?: string
     reason?: string

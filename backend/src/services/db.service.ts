@@ -1,54 +1,90 @@
-import fs from 'fs'
-import path from 'path'
+import mysql from 'mysql2/promise'
+import { env } from '../config/env'
 
-const DB_PATH = path.join(__dirname, '../../appointments.json')
+const pool = mysql.createPool({
+  host: env.dbHost,
+  user: env.dbUser,
+  password: env.dbPassword,
+  database: env.dbName,
+  waitForConnections: true,
+  connectionLimit: 10
+})
 
-interface Appointment {
-  id: string
-  phone: string
-  date: string
-  time: string
-  reason: string
-  createdAt: string
+export async function initDB() {
+  const connection = await pool.getConnection()
+  
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL
+    )
+  `)
+  
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS doctors (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      category_id INT NOT NULL,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )
+  `)
+  
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS time_slots (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      doctor_id INT NOT NULL,
+      time VARCHAR(20) NOT NULL,
+      FOREIGN KEY (doctor_id) REFERENCES doctors(id)
+    )
+  `)
+  
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      phone VARCHAR(20) NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      doctor VARCHAR(100) NOT NULL,
+      date VARCHAR(50) NOT NULL,
+      time VARCHAR(50) NOT NULL,
+      reason TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+  
+  connection.release()
+  console.log('✅ Database initialized')
 }
 
-function readDB(): Appointment[] {
-  try {
-    if (!fs.existsSync(DB_PATH)) {
-      fs.writeFileSync(DB_PATH, '[]')
-      return []
-    }
-    const data = fs.readFileSync(DB_PATH, 'utf-8')
-    return JSON.parse(data)
-  } catch {
-    return []
-  }
+export async function getCategories() {
+  const [rows] = await pool.query('SELECT * FROM categories')
+  return rows as any[]
 }
 
-function writeDB(appointments: Appointment[]) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(appointments, null, 2))
+export async function getDoctorsByCategory(categoryId: number) {
+  const [rows] = await pool.query('SELECT * FROM doctors WHERE category_id = ?', [categoryId])
+  return rows as any[]
 }
 
-export function saveAppointment(phone: string, date: string, time: string, reason: string) {
-  const appointments = readDB()
-  const newAppointment: Appointment = {
-    id: Date.now().toString(),
-    phone,
-    date,
-    time,
-    reason,
-    createdAt: new Date().toISOString()
-  }
-  appointments.push(newAppointment)
-  writeDB(appointments)
-  console.log('💾 Appointment saved to database:', newAppointment.id)
-  return newAppointment
+export async function getTimeSlotsByDoctor(doctorId: number) {
+  const [rows] = await pool.query('SELECT * FROM time_slots WHERE doctor_id = ?', [doctorId])
+  return rows as any[]
 }
 
-export function getAppointments() {
-  return readDB()
+export async function saveAppointment(phone: string, category: string, doctor: string, date: string, time: string, reason: string) {
+  const [result] = await pool.query(
+    'INSERT INTO appointments (phone, category, doctor, date, time, reason) VALUES (?, ?, ?, ?, ?, ?)',
+    [phone, category, doctor, date, time, reason]
+  )
+  console.log('💾 Appointment saved to MySQL')
+  return result
 }
 
-export function getAppointmentsByPhone(phone: string) {
-  return readDB().filter(apt => apt.phone === phone)
+export async function getAppointments() {
+  const [rows] = await pool.query('SELECT * FROM appointments ORDER BY created_at DESC')
+  return rows
+}
+
+export async function getAppointmentsByPhone(phone: string) {
+  const [rows] = await pool.query('SELECT * FROM appointments WHERE phone = ? ORDER BY created_at DESC', [phone])
+  return rows
 }
