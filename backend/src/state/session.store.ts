@@ -13,6 +13,7 @@ interface Session {
     doctor?: string
     date?: string
     time?: string
+    timeSlotId?: number
     name?: string
   }
 }

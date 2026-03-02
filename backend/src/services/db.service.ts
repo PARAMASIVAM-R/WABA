@@ -71,7 +71,23 @@ export async function getTimeSlotsByDoctor(doctorId: number) {
       id,
       TIME_FORMAT(start_time, '%h:%i %p') as time,
       start_time,
-      end_time
+      end_time,
+      is_booked
+    FROM time_slots 
+    WHERE doctor_id = ? AND is_booked = FALSE
+    ORDER BY start_time
+  `, [doctorId])
+  return rows as any[]
+}
+
+export async function getAllTimeSlotsByDoctor(doctorId: number) {
+  const [rows] = await pool.query(`
+    SELECT 
+      id,
+      TIME_FORMAT(start_time, '%h:%i %p') as time,
+      start_time,
+      end_time,
+      is_booked
     FROM time_slots 
     WHERE doctor_id = ?
     ORDER BY start_time
@@ -79,12 +95,19 @@ export async function getTimeSlotsByDoctor(doctorId: number) {
   return rows as any[]
 }
 
-export async function saveAppointment(phone: string, patientName: string, category: string, doctor: string, date: string, timeSlot: string) {
+export async function saveAppointment(phone: string, patientName: string, category: string, doctor: string, date: string, timeSlot: string, timeSlotId: number) {
   const [result] = await pool.query(
     'INSERT INTO appointments (phone, patient_name, category, doctor, date, time_slot, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [phone, patientName, category, doctor, date, timeSlot, 'pending']
   )
-  console.log('💾 Appointment saved to MySQL with status: pending')
+  
+  // Mark time slot as booked
+  await pool.query(
+    'UPDATE time_slots SET is_booked = TRUE WHERE id = ?',
+    [timeSlotId]
+  )
+  
+  console.log('💾 Appointment saved and time slot marked as booked')
   return result
 }
 

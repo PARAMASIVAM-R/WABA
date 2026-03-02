@@ -163,6 +163,7 @@ export async function processBookingMessage(message: {
         break
       }
       session.data.time = validTime.time
+      session.data.timeSlotId = validTime.id
       response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
       await sendText(phone, response)
       session.state = 'booking_name'
@@ -171,7 +172,15 @@ export async function processBookingMessage(message: {
     case 'booking_name':
       session.data.name = message.text
       
-      await saveAppointment(phone, session.data.name, session.data.category!, session.data.doctor!, session.data.date!, session.data.time!)
+      await saveAppointment(
+        phone, 
+        session.data.name, 
+        session.data.category!, 
+        session.data.doctor!, 
+        session.data.date!, 
+        session.data.time!,
+        session.data.timeSlotId!
+      )
       
       response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
       await sendText(phone, response)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import './App.css'
 
 const API_URL = 'http://localhost:3000'
@@ -55,9 +55,9 @@ function App() {
     setLoading(false)
   }
 
-  const fetchTimeSlots = async (doctorId, date) => {
+  const fetchTimeSlots = async (doctorId) => {
     try {
-      const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots?date=${date}`)
+      const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots`)
       const data = await res.json()
       setTimeSlots(data.slots || [])
     } catch (error) {
@@ -225,17 +225,70 @@ function App() {
                 </thead>
                 <tbody>
                   {doctors.map((doc, index) => (
-                    <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left' }}>
-                        {doc.id}
-                      </td>
-                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left',  }}>
-                        👨⚕️ {doc.name}
-                      </td>
-                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
-                        🏥 {doc.category}
-                      </td>
-                    </tr>
+                    <Fragment key={doc.id}>
+                      <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                        <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left' }}>
+                          {doc.id}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left' }}>
+                          👨⚕️ {doc.name}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
+                          🏥 {doc.category}
+                        </td>
+                      </tr>
+                      <tr style={{ backgroundColor: '#f9fafb' }}>
+                        <td colSpan="3" style={{ padding: '16px' }}>
+                          <button
+                            onClick={() => {
+                              if (selectedDoctor?.id === doc.id) {
+                                setSelectedDoctor(null)
+                                setTimeSlots([])
+                              } else {
+                                setSelectedDoctor(doc)
+                                fetchTimeSlots(doc.id)
+                              }
+                            }}
+                            style={{ 
+                              padding: '8px 16px', 
+                              backgroundColor: '#3b82f6', 
+                              color: 'white', 
+                              border: 'none', 
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              fontSize: '13px',
+                              marginBottom: selectedDoctor?.id === doc.id ? '12px' : '0'
+                            }}
+                          >
+                            {selectedDoctor?.id === doc.id ? '▲ Hide Slots' : '🕐 View Slots'}
+                          </button>
+                          {selectedDoctor?.id === doc.id && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '12px' }}>
+                              {timeSlots.map(slot => (
+                                <div
+                                  key={slot.id}
+                                  style={{
+                                    padding: '12px',
+                                    backgroundColor: slot.is_booked ? '#fee2e2' : '#d1fae5',
+                                    color: slot.is_booked ? '#991b1b' : '#065f46',
+                                    borderRadius: '6px',
+                                    textAlign: 'center',
+                                    fontSize: '13px',
+                                    fontWeight: '600'
+                                  }}
+                                >
+                                  {slot.time}
+                                  <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                                    {slot.is_booked ? '❌ Booked' : '✅ Available'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

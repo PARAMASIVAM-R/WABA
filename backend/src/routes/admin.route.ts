@@ -2,6 +2,7 @@ import { Router } from 'express'
 import mysql from 'mysql2/promise'
 import { env } from '../config/env'
 import { sendText } from '../services/whatsapp.service'
+import { getAllTimeSlotsByDoctor } from '../services/db.service'
 
 const router = Router()
 
@@ -21,6 +22,13 @@ router.get('/doctors', async (req, res) => {
     ORDER BY c.name, d.name
   `)
   res.json({ doctors: rows })
+})
+
+// Get time slots for a doctor
+router.get('/doctors/:doctorId/slots', async (req, res) => {
+  const { doctorId } = req.params
+  const slots = await getAllTimeSlotsByDoctor(parseInt(doctorId))
+  res.json({ slots })
 })
 
 // Get pending appointments
@@ -92,13 +100,22 @@ router.post('/:id/reject', async (req, res) => {
     ['rejected', reason, id]
   )
   
+  // Free up the time slot - find and mark as available
   const apt = appointment[0]
+  await pool.query(
+    `UPDATE time_slots ts
+     JOIN doctors d ON ts.doctor_id = d.id
+     SET ts.is_booked = FALSE
+     WHERE d.name = ? AND TIME_FORMAT(ts.start_time, '%h:%i %p') = ?`,
+    [apt.doctor, apt.time_slot]
+  )
+  
   await sendText(
     apt.phone,
     `❌ Appointment Request Declined\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nReason: ${reason}\n\nPlease contact the hospital or try booking again with a different time.`
   )
   
-  res.json({ success: true, message: 'Appointment rejected' })
+  res.json({ success: true, message: 'Appointment rejected and slot freed' })
 })
 
 export default router

@@ -40,6 +40,7 @@ async function setupDatabase() {
       doctor_id INT NOT NULL,
       start_time TIME NOT NULL,
       end_time TIME NOT NULL,
+      is_booked BOOLEAN DEFAULT FALSE,
       FOREIGN KEY (doctor_id) REFERENCES doctors(id)
     )
   `)
@@ -89,17 +90,21 @@ async function setupDatabase() {
     ('Dr. Robert Taylor', ?)
   `, [catIds[0], catIds[0], catIds[1], catIds[1], catIds[2], catIds[3], catIds[4]])
 
-  // Insert time slots for all doctors (15-minute intervals, 9 AM - 5 PM)
-  const [doctors] = await connection.query('SELECT id FROM doctors')
-  for (const doctor of doctors as any[]) {
-    const slots = [
-      ['09:00:00', '09:15:00'], ['09:15:00', '09:30:00'], ['09:30:00', '09:45:00'], ['09:45:00', '10:00:00'],
-      ['10:00:00', '10:15:00'], ['10:15:00', '10:30:00'], ['10:30:00', '10:45:00'], ['10:45:00', '11:00:00'],
-      ['11:00:00', '11:15:00'], ['11:15:00', '11:30:00'], ['11:30:00', '11:45:00'], ['11:45:00', '12:00:00'],
-      ['14:00:00', '14:15:00'], ['14:15:00', '14:30:00'], ['14:30:00', '14:45:00'], ['14:45:00', '15:00:00'],
-      ['15:00:00', '15:15:00'], ['15:15:00', '15:30:00'], ['15:30:00', '15:45:00'], ['15:45:00', '16:00:00'],
-      ['16:00:00', '16:15:00'], ['16:15:00', '16:30:00'], ['16:30:00', '16:45:00'], ['16:45:00', '17:00:00']
-    ]
+  // Insert time slots - Each doctor gets 4 unique slots
+  const [doctors] = await connection.query('SELECT id, name FROM doctors')
+  const doctorSlots = [
+    [['09:00:00', '09:30:00'], ['10:30:00', '11:00:00'], ['14:00:00', '14:30:00'], ['16:00:00', '16:30:00']], // Dr. John Smith
+    [['09:30:00', '10:00:00'], ['11:00:00', '11:30:00'], ['14:30:00', '15:00:00'], ['16:30:00', '17:00:00']], // Dr. Sarah Johnson
+    [['10:00:00', '10:30:00'], ['11:30:00', '12:00:00'], ['15:00:00', '15:30:00'], ['17:00:00', '17:30:00']], // Dr. Michael Brown
+    [['09:15:00', '09:45:00'], ['10:45:00', '11:15:00'], ['14:15:00', '14:45:00'], ['16:15:00', '16:45:00']], // Dr. Emily Davis
+    [['09:45:00', '10:15:00'], ['11:15:00', '11:45:00'], ['14:45:00', '15:15:00'], ['16:45:00', '17:15:00']], // Dr. David Wilson
+    [['10:15:00', '10:45:00'], ['11:45:00', '12:15:00'], ['15:15:00', '15:45:00'], ['17:15:00', '17:45:00']], // Dr. Lisa Anderson
+    [['10:30:00', '11:00:00'], ['12:00:00', '12:30:00'], ['15:30:00', '16:00:00'], ['17:30:00', '18:00:00']]  // Dr. Robert Taylor
+  ]
+  
+  for (let i = 0; i < (doctors as any[]).length; i++) {
+    const doctor = (doctors as any[])[i]
+    const slots = doctorSlots[i] || []
     
     for (const [start, end] of slots) {
       await connection.query(
@@ -113,7 +118,16 @@ async function setupDatabase() {
   console.log('📊 Created:')
   console.log('   - 5 categories')
   console.log('   - 7 doctors')
-  console.log('   - 24 time slots per doctor (9 AM - 5 PM, 15-min intervals)')
+  console.log('   - 4 unique time slots per doctor')
+  console.log('')
+  console.log('👨⚕️ Doctor Schedules:')
+  console.log('   Dr. John Smith: 9:00 AM, 10:30 AM, 2:00 PM, 4:00 PM')
+  console.log('   Dr. Sarah Johnson: 9:30 AM, 11:00 AM, 2:30 PM, 4:30 PM')
+  console.log('   Dr. Michael Brown: 10:00 AM, 11:30 AM, 3:00 PM, 5:00 PM')
+  console.log('   Dr. Emily Davis: 9:15 AM, 10:45 AM, 2:15 PM, 4:15 PM')
+  console.log('   Dr. David Wilson: 9:45 AM, 11:15 AM, 2:45 PM, 4:45 PM')
+  console.log('   Dr. Lisa Anderson: 10:15 AM, 11:45 AM, 3:15 PM, 5:15 PM')
+  console.log('   Dr. Robert Taylor: 10:30 AM, 12:00 PM, 3:30 PM, 5:30 PM')
   
   await connection.end()
 }
