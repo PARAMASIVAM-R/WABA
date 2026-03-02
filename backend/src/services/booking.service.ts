@@ -30,7 +30,6 @@ export async function processBookingMessage(message: {
   switch (session.state) {
     case 'idle':
       if (input.includes('hello') || input.includes('hi') || input.includes('book') || input.includes('appointment')) {
-        // Send welcome message first
         await sendText(phone, '👋 Welcome! I can help you book a doctor appointment.')
         
         const categories = await getCategories()
@@ -74,7 +73,7 @@ export async function processBookingMessage(message: {
       }
       await sendInteractiveList(
         phone,
-        `👨‍⚕️ Select a doctor from ${selectedCategory.name}:`,
+        `👨⚕️ Select a doctor from ${selectedCategory.name}:`,
         'Select Doctor',
         [{
           title: 'Available Doctors',
@@ -132,13 +131,14 @@ export async function processBookingMessage(message: {
         break
       }
       
+      // Show only first 10 slots (WhatsApp limit)
       await sendInteractiveList(
         phone,
-        '🕐 Select your preferred time:',
+        '🕐 Select your preferred time (15-minute slots):',
         'Select Time',
         [{
           title: 'Available Slots',
-          rows: timeSlots.map(t => ({ id: t.id.toString(), title: t.time }))
+          rows: timeSlots.slice(0, 10).map(t => ({ id: t.id.toString(), title: t.time }))
         }]
       )
       session.state = 'booking_time'
@@ -159,17 +159,17 @@ export async function processBookingMessage(message: {
         break
       }
       session.data.time = validTime.time
-      response = '⏰ Time confirmed!\n\nWhat is the reason for your visit? 🏥'
+      response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
       await sendText(phone, response)
-      session.state = 'booking_reason'
+      session.state = 'booking_name'
       break
 
-    case 'booking_reason':
-      session.data.reason = input
+    case 'booking_name':
+      session.data.name = message.text
       
-      saveAppointment(phone, session.data.category!, session.data.doctor!, session.data.date!, session.data.time!, session.data.reason)
+      saveAppointment(phone, session.data.name, session.data.category!, session.data.doctor!, session.data.date!, session.data.time!)
       
-      response = `✅ Appointment Confirmed!\n\n📋 Summary:\n🏥 Category: ${session.data.category}\n👨‍⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n💬 Reason: ${session.data.reason}\n\nThank you! See you soon! 🙏`
+      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
       await sendText(phone, response)
       clearSession(phone)
       return response

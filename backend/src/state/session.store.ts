@@ -4,7 +4,7 @@ export type BookingState =
   | 'booking_doctor'
   | 'booking_date'
   | 'booking_time'
-  | 'booking_reason'
+  | 'booking_name'
 
 interface Session {
   state: BookingState
@@ -13,7 +13,7 @@ interface Session {
     doctor?: string
     date?: string
     time?: string
-    reason?: string
+    name?: string
   }
 }
 

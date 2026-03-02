@@ -66,16 +66,25 @@ export async function getDoctorsByCategory(categoryId: number) {
 }
 
 export async function getTimeSlotsByDoctor(doctorId: number) {
-  const [rows] = await pool.query('SELECT * FROM time_slots WHERE doctor_id = ?', [doctorId])
+  const [rows] = await pool.query(`
+    SELECT 
+      id,
+      TIME_FORMAT(start_time, '%h:%i %p') as time,
+      start_time,
+      end_time
+    FROM time_slots 
+    WHERE doctor_id = ?
+    ORDER BY start_time
+  `, [doctorId])
   return rows as any[]
 }
 
-export async function saveAppointment(phone: string, category: string, doctor: string, date: string, time: string, reason: string) {
+export async function saveAppointment(phone: string, patientName: string, category: string, doctor: string, date: string, timeSlot: string) {
   const [result] = await pool.query(
-    'INSERT INTO appointments (phone, category, doctor, date, time, reason) VALUES (?, ?, ?, ?, ?, ?)',
-    [phone, category, doctor, date, time, reason]
+    'INSERT INTO appointments (phone, patient_name, category, doctor, date, time_slot, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [phone, patientName, category, doctor, date, timeSlot, 'pending']
   )
-  console.log('💾 Appointment saved to MySQL')
+  console.log('💾 Appointment saved to MySQL with status: pending')
   return result
 }
 
