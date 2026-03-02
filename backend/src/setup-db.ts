@@ -12,6 +12,7 @@ async function setupDatabase() {
   console.log('🔧 Setting up database...')
 
   // Drop existing tables
+  await connection.query('DROP TABLE IF EXISTS followups')
   await connection.query('DROP TABLE IF EXISTS appointments')
   await connection.query('DROP TABLE IF EXISTS time_slots')
   await connection.query('DROP TABLE IF EXISTS doctors')
@@ -59,6 +60,20 @@ async function setupDatabase() {
       rejection_reason TEXT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `)
+
+  await connection.query(`
+    CREATE TABLE followups (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      phone VARCHAR(20) NOT NULL,
+      patient_name VARCHAR(100) NULL,
+      message_type ENUM('custom', 'template') DEFAULT 'custom',
+      template_name VARCHAR(100) NULL,
+      custom_message TEXT NULL,
+      status ENUM('pending', 'sent') DEFAULT 'pending',
+      sent_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `)
 

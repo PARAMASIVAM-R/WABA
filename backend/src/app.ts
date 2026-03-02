@@ -4,6 +4,7 @@ import whatsappRouter from './routes/whatsapp.route'
 import inviteRouter from './routes/invite.route'
 import appointmentsRouter from './routes/appointments.route'
 import adminRouter from './routes/admin.route'
+import followupRouter from './routes/followup.route'
 
 const app = express()
 app.use(cors())
@@ -17,5 +18,6 @@ app.use('/webhooks/whatsapp', whatsappRouter)
 app.use('/invite', inviteRouter)
 app.use('/appointments', appointmentsRouter)
 app.use('/admin/appointments', adminRouter)
+app.use('/admin/followups', followupRouter)
 
 export default app

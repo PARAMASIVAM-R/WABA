@@ -120,3 +120,24 @@ export async function getAppointmentsByPhone(phone: string) {
   const [rows] = await pool.query('SELECT * FROM appointments WHERE phone = ? ORDER BY created_at DESC', [phone])
   return rows
 }
+
+// Followup functions
+export async function createFollowup(phone: string, patientName: string | null, messageType: 'custom' | 'template', templateName: string | null, customMessage: string | null) {
+  const [result] = await pool.query(
+    'INSERT INTO followups (phone, patient_name, message_type, template_name, custom_message) VALUES (?, ?, ?, ?, ?)',
+    [phone, patientName, messageType, templateName, customMessage]
+  )
+  return result
+}
+
+export async function getFollowups() {
+  const [rows] = await pool.query('SELECT * FROM followups ORDER BY created_at DESC')
+  return rows
+}
+
+export async function markFollowupAsSent(id: number) {
+  await pool.query(
+    'UPDATE followups SET status = "sent", sent_at = NOW() WHERE id = ?',
+    [id]
+  )
+}

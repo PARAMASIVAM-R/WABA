@@ -7,16 +7,28 @@ function App() {
   const [activeTab, setActiveTab] = useState('pending')
   const [appointments, setAppointments] = useState([])
   const [doctors, setDoctors] = useState([])
+  const [followups, setFollowups] = useState([])
+  const [templates, setTemplates] = useState([])
   const [selectedDoctor, setSelectedDoctor] = useState(null)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [timeSlots, setTimeSlots] = useState([])
   const [loading, setLoading] = useState(false)
   const [alternateSlot, setAlternateSlot] = useState({})
   const [rejectReason, setRejectReason] = useState({})
+  const [followupForm, setFollowupForm] = useState({
+    phone: '',
+    patientName: '',
+    messageType: 'custom',
+    templateName: '',
+    customMessage: ''
+  })
 
   useEffect(() => {
     if (activeTab === 'doctors') {
       fetchDoctors()
+    } else if (activeTab === 'followups') {
+      fetchFollowups()
+      fetchTemplates()
     } else {
       fetchAppointments()
     }
@@ -113,6 +125,72 @@ function App() {
     }
   }
 
+  const fetchFollowups = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/admin/followups`)
+      const data = await res.json()
+      setFollowups(data || [])
+    } catch (error) {
+      alert('Error fetching follow-ups')
+    }
+    setLoading(false)
+  }
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/followups/templates`)
+      const data = await res.json()
+      setTemplates(data || [])
+    } catch (error) {
+      console.error('Error fetching templates')
+    }
+  }
+
+  const handleCreateFollowup = async (e) => {
+    e.preventDefault()
+    if (!followupForm.phone) {
+      alert('Phone number is required')
+      return
+    }
+    if (followupForm.messageType === 'custom' && !followupForm.customMessage) {
+      alert('Custom message is required')
+      return
+    }
+    if (followupForm.messageType === 'template' && !followupForm.templateName) {
+      alert('Please select a template')
+      return
+    }
+    try {
+      await fetch(`${API_URL}/admin/followups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(followupForm)
+      })
+      alert('Follow-up created successfully!')
+      setFollowupForm({ phone: '', patientName: '', messageType: 'custom', templateName: '', customMessage: '' })
+      fetchFollowups()
+    } catch (error) {
+      alert('Error creating follow-up')
+    }
+  }
+
+  const handleSendFollowup = async (id) => {
+    if (!confirm('Send this follow-up message now?')) return
+    try {
+      await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
+      alert('Follow-up sent successfully!')
+      fetchFollowups()
+    } catch (error) {
+      alert('Error sending follow-up')
+    }
+  }
+
+  const handleQuickFollowup = (phone, name) => {
+    setFollowupForm({ ...followupForm, phone, patientName: name })
+    setActiveTab('followups')
+  }
+
   return (
     <div style={{ maxWidth: '90%', margin: '0 auto', minHeight: '100vh', backgroundColor: '#f0f4f8' }}>
       {/* Header */}
@@ -191,6 +269,21 @@ function App() {
           >
             👨⚕️ Doctors
           </button>
+          <button
+            onClick={() => setActiveTab('followups')}
+            style={{
+              padding: '20px 40px',
+              backgroundColor: activeTab === 'followups' ? '#1e40af' : 'transparent',
+              color: activeTab === 'followups' ? 'white' : '#64748b',
+              border: 'none',
+              borderBottom: activeTab === 'followups' ? '4px solid #1e40af' : '4px solid transparent',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '16px'
+            }}
+          >
+            📨 Follow-ups
+          </button>
         </div>
       </div>
 
@@ -198,7 +291,164 @@ function App() {
       <div style={{ padding: '40px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-            <p style={{ fontSize: '20px' }}>Loading {activeTab === 'doctors' ? 'doctors' : 'appointments'}...</p>
+            <p style={{ fontSize: '20px' }}>Loading...</p>
+          </div>
+        ) : activeTab === 'followups' ? (
+          <div>
+            {/* Create Follow-up Form */}
+            <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', marginBottom: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <h2 style={{ margin: '0 0 24px 0', color: '#1e293b', fontSize: '20px' }}>📝 Create New Follow-up</h2>
+              <form onSubmit={handleCreateFollowup}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}>Phone Number *</label>
+                    <input
+                      type="text"
+                      value={followupForm.phone}
+                      onChange={(e) => setFollowupForm({ ...followupForm, phone: e.target.value })}
+                      placeholder="e.g., 916379773448"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}>Patient Name (Optional)</label>
+                    <input
+                      type="text"
+                      value={followupForm.patientName}
+                      onChange={(e) => setFollowupForm({ ...followupForm, patientName: e.target.value })}
+                      placeholder="e.g., John Doe"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}>Message Type *</label>
+                  <select
+                    value={followupForm.messageType}
+                    onChange={(e) => setFollowupForm({ ...followupForm, messageType: e.target.value, templateName: '', customMessage: '' })}
+                    style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px' }}
+                  >
+                    <option value="custom">Custom Message</option>
+                    <option value="template">Pre-defined Template</option>
+                  </select>
+                </div>
+                {followupForm.messageType === 'template' ? (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}>Select Template *</label>
+                    <select
+                      value={followupForm.templateName}
+                      onChange={(e) => setFollowupForm({ ...followupForm, templateName: e.target.value })}
+                      style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px' }}
+                    >
+                      <option value="">-- Select Template --</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    {followupForm.templateName && (
+                      <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', fontSize: '13px', color: '#475569' }}>
+                        <strong>Preview:</strong> {templates.find(t => t.id === followupForm.templateName)?.message}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}>Custom Message *</label>
+                    <textarea
+                      value={followupForm.customMessage}
+                      onChange={(e) => setFollowupForm({ ...followupForm, customMessage: e.target.value })}
+                      placeholder="Enter your custom message..."
+                      rows="4"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  style={{ 
+                    padding: '12px 32px', 
+                    backgroundColor: '#1e40af', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '15px'
+                  }}
+                >
+                  ➕ Create Follow-up
+                </button>
+              </form>
+            </div>
+
+            {/* Follow-ups List */}
+            <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <h2 style={{ margin: '0', padding: '24px 32px', backgroundColor: '#f8fafc', color: '#1e293b', fontSize: '20px', borderBottom: '2px solid #e2e8f0' }}>📋 Follow-up Messages</h2>
+              {followups.length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+                  <p style={{ fontSize: '18px', margin: 0 }}>📭 No follow-ups created yet</p>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
+                      <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Phone</th>
+                      <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Patient</th>
+                      <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Type</th>
+                      <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Message</th>
+                      <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Status</th>
+                      <th style={{ padding: '16px', textAlign: 'center', fontSize: '15px', fontWeight: '600' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {followups.map((f, index) => (
+                      <tr key={f.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                        <td style={{ padding: '16px', fontSize: '14px', color: '#1e293b' }}>📞 {f.phone}</td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: '#1e293b' }}>{f.patient_name || '-'}</td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: '#1e293b' }}>
+                          {f.message_type === 'template' ? '📋 Template' : '✏️ Custom'}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: '#475569', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {f.message_type === 'template' ? templates.find(t => t.id === f.template_name)?.name : f.custom_message}
+                        </td>
+                        <td style={{ padding: '16px' }}>
+                          <span style={{ 
+                            display: 'inline-block',
+                            padding: '6px 12px',
+                            backgroundColor: f.status === 'sent' ? '#d1fae5' : '#fef3c7',
+                            color: f.status === 'sent' ? '#065f46' : '#92400e',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '600'
+                          }}>
+                            {f.status === 'sent' ? '✅ Sent' : '⏳ Pending'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                          {f.status === 'pending' && (
+                            <button
+                              onClick={() => handleSendFollowup(f.id)}
+                              style={{ 
+                                padding: '8px 16px', 
+                                backgroundColor: '#10b981', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '13px'
+                              }}
+                            >
+                              📤 Send Now
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         ) : activeTab === 'doctors' ? (
           doctors.length === 0 ? (
@@ -318,9 +568,7 @@ function App() {
                   <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Date</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Time</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600' }}>Status</th>
-                  {activeTab === 'pending' && (
-                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '15px', fontWeight: '600' }}>Actions</th>
-                  )}
+                  <th style={{ padding: '16px', textAlign: 'center', fontSize: '15px', fontWeight: '600' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,8 +605,8 @@ function App() {
                         {apt.status === 'accepted' ? '✅' : '⏳'} {apt.status.toUpperCase()}
                       </span>
                     </td>
-                    {activeTab === 'pending' && (
-                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                    <td style={{ padding: '16px', textAlign: 'center' }}>
+                      {activeTab === 'pending' ? (
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button
                             onClick={() => handleAccept(apt.id)}
@@ -421,8 +669,25 @@ function App() {
                             ❌ Reject
                           </button>
                         </div>
-                      </td>
-                    )}
+                      ) : (
+                        <button
+                          onClick={() => handleQuickFollowup(apt.phone, apt.patient_name)}
+                          style={{ 
+                            padding: '8px 16px', 
+                            backgroundColor: '#8b5cf6', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '13px',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          📨 Send Follow-up
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
