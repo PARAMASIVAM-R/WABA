@@ -181,6 +181,7 @@ npx ts-node src/test-api.ts
 Expected: `✅ SUCCESS! API is working`
 
 ### **8. Setup Webhook**
+ npx ts-node src/setup-db.ts  -- for setup/ reset database tables
 
 **Terminal 1 - Start Server:**
 ```bash
