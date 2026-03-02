@@ -12,6 +12,17 @@ const pool = mysql.createPool({
   database: env.dbName
 })
 
+// Get all doctors with their categories
+router.get('/doctors', async (req, res) => {
+  const [rows] = await pool.query(`
+    SELECT d.id, d.name, c.name as category
+    FROM doctors d
+    JOIN categories c ON d.category_id = c.id
+    ORDER BY c.name, d.name
+  `)
+  res.json({ doctors: rows })
+})
+
 // Get pending appointments
 router.get('/pending', async (req, res) => {
   const [rows] = await pool.query(`

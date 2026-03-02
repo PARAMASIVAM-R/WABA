@@ -6,12 +6,17 @@ const API_URL = 'http://localhost:3000'
 function App() {
   const [activeTab, setActiveTab] = useState('pending')
   const [appointments, setAppointments] = useState([])
+  const [doctors, setDoctors] = useState([])
   const [loading, setLoading] = useState(false)
   const [alternateSlot, setAlternateSlot] = useState({})
   const [rejectReason, setRejectReason] = useState({})
 
   useEffect(() => {
-    fetchAppointments()
+    if (activeTab === 'doctors') {
+      fetchDoctors()
+    } else {
+      fetchAppointments()
+    }
   }, [activeTab])
 
   const fetchAppointments = async () => {
@@ -31,6 +36,18 @@ function App() {
       }
     } catch (error) {
       alert('Error fetching appointments')
+    }
+    setLoading(false)
+  }
+
+  const fetchDoctors = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/admin/appointments/doctors`)
+      const data = await res.json()
+      setDoctors(data.doctors || [])
+    } catch (error) {
+      alert('Error fetching doctors')
     }
     setLoading(false)
   }
@@ -84,18 +101,19 @@ function App() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f0f4f8' }}>
+    <div style={{ maxWidth: '90%', margin: '0 auto', minHeight: '100vh', backgroundColor: '#f0f4f8' }}>
       {/* Header */}
       <div style={{ 
         backgroundColor: '#264ac0', 
         color: 'white', 
         padding: '24px 40px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        borderRadius: '0 0 16px 16px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontSize: '28px' }}>🏥 Appointment Management Dashboard</h1>
           <button 
-            onClick={fetchAppointments}
+            onClick={() => activeTab === 'doctors' ? fetchDoctors() : fetchAppointments()}
             style={{ 
               padding: '12px 24px', 
               backgroundColor: 'white',
@@ -113,7 +131,7 @@ function App() {
       </div>
 
       {/* Tabs */}
-      <div style={{ backgroundColor: 'white', borderBottom: '2px solid #e2e8f0' }}>
+      <div style={{ backgroundColor: 'white', borderBottom: '2px solid #e2e8f0', borderRadius: '16px 16px 0 0', marginTop: '20px' }}>
         <div style={{ padding: '0 40px', display: 'flex', gap: '0' }}>
           <button
             onClick={() => setActiveTab('pending')}
@@ -145,6 +163,21 @@ function App() {
           >
             ✅ Approved
           </button>
+          <button
+            onClick={() => setActiveTab('doctors')}
+            style={{
+              padding: '20px 40px',
+              backgroundColor: activeTab === 'doctors' ? '#1e40af' : 'transparent',
+              color: activeTab === 'doctors' ? 'white' : '#64748b',
+              border: 'none',
+              borderBottom: activeTab === 'doctors' ? '4px solid #1e40af' : '4px solid transparent',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '16px'
+            }}
+          >
+            👨⚕️ Doctors
+          </button>
         </div>
       </div>
 
@@ -152,8 +185,49 @@ function App() {
       <div style={{ padding: '40px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-            <p style={{ fontSize: '20px' }}>Loading appointments...</p>
+            <p style={{ fontSize: '20px' }}>Loading {activeTab === 'doctors' ? 'doctors' : 'appointments'}...</p>
           </div>
+        ) : activeTab === 'doctors' ? (
+          doctors.length === 0 ? (
+            <div style={{ 
+              backgroundColor: 'white', 
+              padding: '80px 40px', 
+              borderRadius: '16px',
+              textAlign: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <p style={{ fontSize: '20px', color: '#64748b', margin: 0 }}>
+                📭 No doctors found
+              </p>
+            </div>
+          ) : (
+            <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600', width: '80px' }}>ID</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600', width: '60px' }}>Doctor Name</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '15px', fontWeight: '600', width: '60px' }}>Category</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doctors.map((doc, index) => (
+                    <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left' }}>
+                        {doc.id}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left',  }}>
+                        👨⚕️ {doc.name}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
+                        🏥 {doc.category}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : appointments.length === 0 ? (
           <div style={{ 
             backgroundColor: 'white', 
@@ -186,25 +260,25 @@ function App() {
               <tbody>
                 {appointments.map((apt, index) => (
                   <tr key={apt.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b', fontWeight: '500' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', fontWeight: '500', textAlign: 'left' }}>
                       👤 {apt.patient_name}
                     </td>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
                       📞 {apt.phone}
                     </td>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
                       🏥 {apt.category}
                     </td>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
                       👨⚕️ {apt.doctor}
                     </td>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
                       📅 {apt.date}
                     </td>
-                    <td style={{ padding: '20px 16px', fontSize: '15px', color: '#1e293b' }}>
+                    <td style={{ padding: '16px', fontSize: '15px', color: '#1e293b', textAlign: 'left' }}>
                       🕐 {apt.time_slot}
                     </td>
-                    <td style={{ padding: '20px 16px' }}>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>
                       <span style={{ 
                         display: 'inline-block',
                         padding: '6px 12px',
@@ -218,7 +292,7 @@ function App() {
                       </span>
                     </td>
                     {activeTab === 'pending' && (
-                      <td style={{ padding: '20px 16px' }}>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button
                             onClick={() => handleAccept(apt.id)}
