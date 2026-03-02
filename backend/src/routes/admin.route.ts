@@ -2,7 +2,7 @@ import { Router } from 'express'
 import mysql from 'mysql2/promise'
 import { env } from '../config/env'
 import { sendText } from '../services/whatsapp.service'
-import { getAllTimeSlotsByDoctor } from '../services/db.service'
+import { getAllTimeSlotsByDoctor, createDoctor, updateDoctor, deleteDoctor, createTimeSlot, deleteTimeSlot, getCategories } from '../services/db.service'
 
 const router = Router()
 
@@ -116,6 +116,49 @@ router.post('/:id/reject', async (req, res) => {
   )
   
   res.json({ success: true, message: 'Appointment rejected and slot freed' })
+})
+
+// Get categories
+router.get('/categories', async (req, res) => {
+  const categories = await getCategories()
+  res.json({ categories })
+})
+
+// Create doctor
+router.post('/doctors', async (req, res) => {
+  const { name, categoryId } = req.body
+  await createDoctor(name, categoryId)
+  res.json({ success: true, message: 'Doctor created' })
+})
+
+// Update doctor
+router.put('/doctors/:id', async (req, res) => {
+  const { id } = req.params
+  const { name, categoryId } = req.body
+  await updateDoctor(parseInt(id), name, categoryId)
+  res.json({ success: true, message: 'Doctor updated' })
+})
+
+// Delete doctor
+router.delete('/doctors/:id', async (req, res) => {
+  const { id } = req.params
+  await deleteDoctor(parseInt(id))
+  res.json({ success: true, message: 'Doctor deleted' })
+})
+
+// Add time slot
+router.post('/doctors/:doctorId/slots', async (req, res) => {
+  const { doctorId } = req.params
+  const { startTime, endTime } = req.body
+  await createTimeSlot(parseInt(doctorId), startTime, endTime)
+  res.json({ success: true, message: 'Time slot added' })
+})
+
+// Delete time slot
+router.delete('/slots/:id', async (req, res) => {
+  const { id } = req.params
+  await deleteTimeSlot(parseInt(id))
+  res.json({ success: true, message: 'Time slot deleted' })
 })
 
 export default router

@@ -39,10 +39,12 @@ async function setupDatabase() {
     CREATE TABLE time_slots (
       id INT AUTO_INCREMENT PRIMARY KEY,
       doctor_id INT NOT NULL,
+      slot_date DATE NOT NULL,
       start_time TIME NOT NULL,
       end_time TIME NOT NULL,
       is_booked BOOLEAN DEFAULT FALSE,
-      FOREIGN KEY (doctor_id) REFERENCES doctors(id)
+      FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+      UNIQUE KEY unique_slot (doctor_id, slot_date, start_time)
     )
   `)
 
@@ -105,7 +107,7 @@ async function setupDatabase() {
     ('Dr. Robert Taylor', ?)
   `, [catIds[0], catIds[0], catIds[1], catIds[1], catIds[2], catIds[3], catIds[4]])
 
-  // Insert time slots - Each doctor gets 4 unique slots
+  // Insert time slots - Each doctor gets 4 slots per day for next 7 days
   const [doctors] = await connection.query('SELECT id, name FROM doctors')
   const doctorSlots = [
     [['09:00:00', '09:30:00'], ['10:30:00', '11:00:00'], ['14:00:00', '14:30:00'], ['16:00:00', '16:30:00']], // Dr. John Smith
@@ -117,15 +119,23 @@ async function setupDatabase() {
     [['10:30:00', '11:00:00'], ['12:00:00', '12:30:00'], ['15:30:00', '16:00:00'], ['17:30:00', '18:00:00']]  // Dr. Robert Taylor
   ]
   
-  for (let i = 0; i < (doctors as any[]).length; i++) {
-    const doctor = (doctors as any[])[i]
-    const slots = doctorSlots[i] || []
+  // Generate slots for next 7 days
+  const today = new Date()
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const slotDate = new Date(today)
+    slotDate.setDate(today.getDate() + dayOffset)
+    const dateStr = slotDate.toISOString().split('T')[0]
     
-    for (const [start, end] of slots) {
-      await connection.query(
-        'INSERT INTO time_slots (doctor_id, start_time, end_time) VALUES (?, ?, ?)',
-        [doctor.id, start, end]
-      )
+    for (let i = 0; i < (doctors as any[]).length; i++) {
+      const doctor = (doctors as any[])[i]
+      const slots = doctorSlots[i] || []
+      
+      for (const [start, end] of slots) {
+        await connection.query(
+          'INSERT INTO time_slots (doctor_id, slot_date, start_time, end_time) VALUES (?, ?, ?, ?)',
+          [doctor.id, dateStr, start, end]
+        )
+      }
     }
   }
 
@@ -133,7 +143,8 @@ async function setupDatabase() {
   console.log('📊 Created:')
   console.log('   - 5 categories')
   console.log('   - 7 doctors')
-  console.log('   - 4 unique time slots per doctor')
+  console.log('   - 4 time slots per doctor per day')
+  console.log('   - 7 days of slots (196 total slots)')
   console.log('')
   console.log('👨⚕️ Doctor Schedules:')
   console.log('   Dr. John Smith: 9:00 AM, 10:30 AM, 2:00 PM, 4:00 PM')

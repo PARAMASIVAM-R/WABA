@@ -69,13 +69,14 @@ export async function getTimeSlotsByDoctor(doctorId: number) {
   const [rows] = await pool.query(`
     SELECT 
       id,
+      slot_date,
       TIME_FORMAT(start_time, '%h:%i %p') as time,
       start_time,
       end_time,
       is_booked
     FROM time_slots 
-    WHERE doctor_id = ? AND is_booked = FALSE
-    ORDER BY start_time
+    WHERE doctor_id = ? AND is_booked = FALSE AND slot_date >= CURDATE()
+    ORDER BY slot_date, start_time
   `, [doctorId])
   return rows as any[]
 }
@@ -84,13 +85,15 @@ export async function getAllTimeSlotsByDoctor(doctorId: number) {
   const [rows] = await pool.query(`
     SELECT 
       id,
+      slot_date,
       TIME_FORMAT(start_time, '%h:%i %p') as time,
       start_time,
       end_time,
       is_booked
     FROM time_slots 
-    WHERE doctor_id = ?
-    ORDER BY start_time
+    WHERE doctor_id = ? AND slot_date >= CURDATE()
+    ORDER BY slot_date, start_time
+    LIMIT 16
   `, [doctorId])
   return rows as any[]
 }
@@ -140,4 +143,44 @@ export async function markFollowupAsSent(id: number) {
     'UPDATE followups SET status = "sent", sent_at = NOW() WHERE id = ?',
     [id]
   )
+}
+
+// Doctor management functions
+export async function createDoctor(name: string, categoryId: number) {
+  const [result] = await pool.query(
+    'INSERT INTO doctors (name, category_id) VALUES (?, ?)',
+    [name, categoryId]
+  )
+  return result
+}
+
+export async function updateDoctor(id: number, name: string, categoryId: number) {
+  await pool.query(
+    'UPDATE doctors SET name = ?, category_id = ? WHERE id = ?',
+    [name, categoryId, id]
+  )
+}
+
+export async function deleteDoctor(id: number) {
+  await pool.query('DELETE FROM time_slots WHERE doctor_id = ?', [id])
+  await pool.query('DELETE FROM doctors WHERE id = ?', [id])
+}
+
+export async function createTimeSlot(doctorId: number, startTime: string, endTime: string) {
+  // Create slot for next 7 days
+  const today = new Date()
+  for (let i = 0; i < 7; i++) {
+    const slotDate = new Date(today)
+    slotDate.setDate(today.getDate() + i)
+    const dateStr = slotDate.toISOString().split('T')[0]
+    
+    await pool.query(
+      'INSERT INTO time_slots (doctor_id, slot_date, start_time, end_time) VALUES (?, ?, ?, ?)',
+      [doctorId, dateStr, startTime, endTime]
+    )
+  }
+}
+
+export async function deleteTimeSlot(id: number) {
+  await pool.query('DELETE FROM time_slots WHERE id = ?', [id])
 }

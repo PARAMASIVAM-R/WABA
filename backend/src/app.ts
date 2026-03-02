@@ -10,6 +10,15 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`\n🌐 ${new Date().toISOString()} - ${req.method} ${req.path}`)
+  if (req.method === 'POST') {
+    console.log('📦 Body:', JSON.stringify(req.body, null, 2))
+  }
+  next()
+})
+
 app.get('/ping', (req, res) => {
   res.status(200).send('pong')
 })
