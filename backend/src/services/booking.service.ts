@@ -87,7 +87,8 @@ export async function processBookingMessage(message: {
     case 'booking_doctor':
       const categoryForDoctor = await getCategories()
       const cat = categoryForDoctor.find(c => c.name === session.data.category)
-      const doctorsList = await getDoctorsByCategory(cat!.id)
+      if (!cat) break
+      const doctorsList = await getDoctorsByCategory(cat.id)
       const selectedDoctor = doctorsList.find(d => d.name.toLowerCase() === input)
       if (!selectedDoctor) {
         response = '❌ Please select a doctor from the list provided.'
@@ -121,9 +122,11 @@ export async function processBookingMessage(message: {
       
       const catForSlots = await getCategories()
       const categoryObj = catForSlots.find(c => c.name === session.data.category)
-      const doctorsForSlots = await getDoctorsByCategory(categoryObj!.id)
+      if (!categoryObj) break
+      const doctorsForSlots = await getDoctorsByCategory(categoryObj.id)
       const doctorObj = doctorsForSlots.find(d => d.name === session.data.doctor)
-      const timeSlots = await getTimeSlotsByDoctor(doctorObj!.id)
+      if (!doctorObj) break
+      const timeSlots = await getTimeSlotsByDoctor(doctorObj.id)
       
       if (timeSlots.length === 0) {
         response = '❌ No time slots available for this doctor.'
@@ -131,7 +134,6 @@ export async function processBookingMessage(message: {
         break
       }
       
-      // Show only first 10 slots (WhatsApp limit)
       await sendInteractiveList(
         phone,
         '🕐 Select your preferred time (15-minute slots):',
@@ -148,9 +150,11 @@ export async function processBookingMessage(message: {
     case 'booking_time':
       const catForTime = await getCategories()
       const categoryForTime = catForTime.find(c => c.name === session.data.category)
-      const doctorsForTime = await getDoctorsByCategory(categoryForTime!.id)
+      if (!categoryForTime) break
+      const doctorsForTime = await getDoctorsByCategory(categoryForTime.id)
       const doctorForTime = doctorsForTime.find(d => d.name === session.data.doctor)
-      const slots = await getTimeSlotsByDoctor(doctorForTime!.id)
+      if (!doctorForTime) break
+      const slots = await getTimeSlotsByDoctor(doctorForTime.id)
       const validTime = slots.find(s => s.time.toLowerCase() === input)
       
       if (!validTime) {
@@ -167,7 +171,7 @@ export async function processBookingMessage(message: {
     case 'booking_name':
       session.data.name = message.text
       
-      saveAppointment(phone, session.data.name, session.data.category!, session.data.doctor!, session.data.date!, session.data.time!)
+      await saveAppointment(phone, session.data.name, session.data.category!, session.data.doctor!, session.data.date!, session.data.time!)
       
       response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
       await sendText(phone, response)

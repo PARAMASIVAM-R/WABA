@@ -13,11 +13,15 @@ router.post('/', async (req, res) => {
 
     const message = extractMessage(req.body)
     if (!message) {
-      console.log('❌ No valid message extracted')
+      console.log('❌ No valid message extracted from payload')
+      console.log('Payload structure:', JSON.stringify(req.body, null, 2))
       return
     }
 
     console.log('✅ Message extracted:', message)
+    console.log('📞 From:', message.from)
+    console.log('💬 Text:', message.text)
+    
     await processBookingMessage(message)
     console.log('✅ Processing complete')
   } catch (error) {

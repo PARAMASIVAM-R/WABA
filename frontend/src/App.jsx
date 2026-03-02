@@ -7,6 +7,9 @@ function App() {
   const [activeTab, setActiveTab] = useState('pending')
   const [appointments, setAppointments] = useState([])
   const [doctors, setDoctors] = useState([])
+  const [selectedDoctor, setSelectedDoctor] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [timeSlots, setTimeSlots] = useState([])
   const [loading, setLoading] = useState(false)
   const [alternateSlot, setAlternateSlot] = useState({})
   const [rejectReason, setRejectReason] = useState({})
@@ -50,6 +53,16 @@ function App() {
       alert('Error fetching doctors')
     }
     setLoading(false)
+  }
+
+  const fetchTimeSlots = async (doctorId, date) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots?date=${date}`)
+      const data = await res.json()
+      setTimeSlots(data.slots || [])
+    } catch (error) {
+      alert('Error fetching time slots')
+    }
   }
 
   const handleAccept = async (id) => {
