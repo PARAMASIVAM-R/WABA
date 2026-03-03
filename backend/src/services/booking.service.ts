@@ -118,7 +118,15 @@ export async function processBookingMessage(message: {
         await sendText(phone, response)
         break
       }
-      session.data.date = input
+      
+      // Convert "today"/"tomorrow" to actual date
+      const dateIndex = validDates.indexOf(input)
+      const actualDate = new Date()
+      actualDate.setDate(actualDate.getDate() + dateIndex)
+      const formattedDate = actualDate.toISOString().split('T')[0] // YYYY-MM-DD
+      
+      session.data.date = formattedDate as string | undefined
+      session.data.dateDisplay = input as string | undefined
       
       const catForSlots = await getCategories()
       const categoryObj = catForSlots.find(c => c.name === session.data.category)
@@ -126,7 +134,38 @@ export async function processBookingMessage(message: {
       const doctorsForSlots = await getDoctorsByCategory(categoryObj.id)
       const doctorObj = doctorsForSlots.find(d => d.name === session.data.doctor)
       if (!doctorObj) break
-      const timeSlots = await getTimeSlotsByDoctor(doctorObj.id)
+      
+      // Generate time slots based on doctor configuration
+      const slotsPerDay = doctorObj.slots_per_day || 4
+      const startTime = doctorObj.start_time || '09:00:00'
+      const endTime = doctorObj.end_time || '17:00:00'
+      const timeSlots = []
+      
+      const [startHours, startMinutes] = startTime.split(':')
+      const [endHours, endMinutes] = endTime.split(':')
+      const startMinutesTotal = parseInt(startHours) * 60 + parseInt(startMinutes)
+      const endMinutesTotal = parseInt(endHours) * 60 + parseInt(endMinutes)
+      const slotDuration = Math.floor((endMinutesTotal - startMinutesTotal) / slotsPerDay)
+      
+      for (let i = 0; i < slotsPerDay; i++) {
+        const slotStartMinutes = startMinutesTotal + (i * slotDuration)
+        const slotEndMinutes = slotStartMinutes + slotDuration
+        const slotStartHour = Math.floor(slotStartMinutes / 60)
+        const slotStartMin = slotStartMinutes % 60
+        const slotEndHour = Math.floor(slotEndMinutes / 60)
+        const slotEndMin = slotEndMinutes % 60
+        
+        const formatTime = (h: number, m: number) => {
+          const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h
+          const ampm = h >= 12 ? 'PM' : 'AM'
+          return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`
+        }
+        
+        timeSlots.push({
+          id: i.toString(),
+          title: `${formatTime(slotStartHour, slotStartMin)} - ${formatTime(slotEndHour, slotEndMin)}`
+        })
+      }
       
       if (timeSlots.length === 0) {
         response = '❌ No time slots available for this doctor.'
@@ -136,11 +175,11 @@ export async function processBookingMessage(message: {
       
       await sendInteractiveList(
         phone,
-        '🕐 Select your preferred time (15-minute slots):',
+        '🕐 Select your preferred time slot:',
         'Select Time',
         [{
           title: 'Available Slots',
-          rows: timeSlots.slice(0, 10).map(t => ({ id: t.id.toString(), title: t.time }))
+          rows: timeSlots
         }]
       )
       session.state = 'booking_time'
@@ -148,22 +187,7 @@ export async function processBookingMessage(message: {
       break
 
     case 'booking_time':
-      const catForTime = await getCategories()
-      const categoryForTime = catForTime.find(c => c.name === session.data.category)
-      if (!categoryForTime) break
-      const doctorsForTime = await getDoctorsByCategory(categoryForTime.id)
-      const doctorForTime = doctorsForTime.find(d => d.name === session.data.doctor)
-      if (!doctorForTime) break
-      const slots = await getTimeSlotsByDoctor(doctorForTime.id)
-      const validTime = slots.find(s => s.time.toLowerCase() === input)
-      
-      if (!validTime) {
-        response = '❌ Please select a time from the list provided.'
-        await sendText(phone, response)
-        break
-      }
-      session.data.time = validTime.time
-      session.data.timeSlotId = validTime.id
+      session.data.time = message.text
       response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
       await sendText(phone, response)
       session.state = 'booking_name'
@@ -179,10 +203,11 @@ export async function processBookingMessage(message: {
         session.data.doctor!, 
         session.data.date!, 
         session.data.time!,
-        session.data.timeSlotId!
+        0 // No timeSlotId needed anymore
       )
       
-      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
+      const displayDate = session.data.dateDisplay || session.data.date || 'N/A'
+      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
       await sendText(phone, response)
       clearSession(phone)
       return response

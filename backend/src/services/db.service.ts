@@ -104,13 +104,7 @@ export async function saveAppointment(phone: string, patientName: string, catego
     [phone, patientName, category, doctor, date, timeSlot, 'pending']
   )
   
-  // Mark time slot as booked
-  await pool.query(
-    'UPDATE time_slots SET is_booked = TRUE WHERE id = ?',
-    [timeSlotId]
-  )
-  
-  console.log('💾 Appointment saved and time slot marked as booked')
+  console.log('💾 Appointment saved')
   return result
 }
 

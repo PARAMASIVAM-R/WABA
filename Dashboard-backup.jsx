@@ -5,17 +5,16 @@ const API_URL = 'http://localhost:3000'
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('pending')
   const [appointments, setAppointments] = useState([])
-  const [todayVisits, setTodayVisits] = useState([])
   const [doctors, setDoctors] = useState([])
   const [categories, setCategories] = useState([])
   const [followups, setFollowups] = useState([])
   const [templates, setTemplates] = useState([])
   const [selectedDoctor, setSelectedDoctor] = useState(null)
-  const [doctorSlots, setDoctorSlots] = useState([])
+  const [timeSlots, setTimeSlots] = useState([])
   const [loading, setLoading] = useState(false)
   const [showDoctorModal, setShowDoctorModal] = useState(false)
   const [editingDoctor, setEditingDoctor] = useState(null)
-  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' })
+  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '' })
   const [followupForm, setFollowupForm] = useState({
     phone: '',
     patientName: '',
@@ -31,8 +30,6 @@ function Dashboard() {
     } else if (activeTab === 'followups') {
       fetchFollowups()
       fetchTemplates()
-    } else if (activeTab === 'today') {
-      fetchTodayVisits()
     } else {
       fetchAppointments()
     }
@@ -45,13 +42,7 @@ function Dashboard() {
       const res = await fetch(endpoint)
       const data = await res.json()
       const allAppointments = data.appointments || []
-      if (activeTab === 'approved') {
-        setAppointments(allAppointments.filter(apt => apt.status === 'accepted'))
-      } else if (activeTab === 'rejected') {
-        setAppointments(allAppointments.filter(apt => apt.status === 'rejected'))
-      } else {
-        setAppointments(allAppointments)
-      }
+      setAppointments(activeTab === 'approved' ? allAppointments.filter(apt => apt.status === 'accepted') : allAppointments)
     } catch (error) {
       console.error(error)
     }
@@ -80,35 +71,14 @@ function Dashboard() {
     }
   }
 
-  const fetchDoctorSlots = async (doctorId) => {
+  const fetchTimeSlots = async (doctorId) => {
     try {
       const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots`)
       const data = await res.json()
-      const grouped = (data.appointments || []).reduce((acc, apt) => {
-        const key = `${apt.date}_${apt.time_slot}`
-        if (!acc[key]) acc[key] = { date: apt.date, time_slot: apt.time_slot, patients: [] }
-        acc[key].patients.push(apt)
-        return acc
-      }, {})
-      setDoctorSlots(Object.values(grouped))
+      setTimeSlots(data.slots || [])
     } catch (error) {
       console.error(error)
     }
-  }
-
-  const fetchTodayVisits = async () => {
-    setLoading(true)
-    try {
-      console.log('Fetching today visits...')
-      const res = await fetch(`${API_URL}/admin/appointments/today`)
-      const data = await res.json()
-      console.log('Today visits response:', data)
-      console.log('Number of appointments:', data.appointments?.length || 0)
-      setTodayVisits(data.appointments || [])
-    } catch (error) {
-      console.error('Error fetching today visits:', error)
-    }
-    setLoading(false)
   }
 
   const fetchFollowups = async () => {
@@ -159,63 +129,9 @@ function Dashboard() {
     }
   }
 
-  const handleChangeSlot = async (apt) => {
-    const newTime = prompt(`Current: ${apt.time_slot}\nEnter new time slot:`)
-    if (!newTime) return
-    try {
-      await fetch(`${API_URL}/admin/appointments/${apt.id}/change-slot`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newTime })
-      })
-      alert('Time slot updated!')
-      fetchAppointments()
-    } catch (error) {
-      alert('Error changing slot')
-    }
-  }
-
-  const handleMarkVisited = async (id) => {
-    if (!confirm('Mark this patient as visited and assign token?')) return
-    try {
-      const res = await fetch(`${API_URL}/admin/appointments/${id}/visited`, { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        alert(`Patient marked as visited! Token Number: ${data.tokenNumber}`)
-        if (activeTab === 'today') {
-          fetchTodayVisits()
-        } else {
-          fetchAppointments()
-        }
-      } else {
-        alert(data.error || 'Error marking as visited')
-      }
-    } catch (error) {
-      alert('Error marking as visited')
-    }
-  }
-
-  const handleMarkCompleted = async (id) => {
-    if (!confirm('Mark checkup as completed?')) return
-    try {
-      await fetch(`${API_URL}/admin/appointments/${id}/completed`, { method: 'POST' })
-      alert('Checkup marked as completed!')
-      fetchTodayVisits()
-      if (selectedDoctor) {
-        fetchDoctorSlots(selectedDoctor.id)
-      }
-    } catch (error) {
-      alert('Error marking as completed')
-    }
-  }
-
   const handleSaveDoctor = async () => {
     if (!doctorForm.name || !doctorForm.categoryId) {
       alert('Please fill all fields')
-      return
-    }
-    if (!editingDoctor && (!doctorForm.slotsPerDay || !doctorForm.startTime || !doctorForm.endTime)) {
-      alert('Please fill slot configuration')
       return
     }
     try {
@@ -223,7 +139,7 @@ function Dashboard() {
         await fetch(`${API_URL}/admin/appointments/doctors/${editingDoctor.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: doctorForm.name, categoryId: doctorForm.categoryId })
+          body: JSON.stringify(doctorForm)
         })
       } else {
         await fetch(`${API_URL}/admin/appointments/doctors`, {
@@ -234,7 +150,7 @@ function Dashboard() {
       }
       setShowDoctorModal(false)
       setEditingDoctor(null)
-      setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' })
+      setDoctorForm({ name: '', categoryId: '' })
       fetchDoctors()
     } catch (error) {
       alert('Error saving doctor')
@@ -287,10 +203,8 @@ function Dashboard() {
         </div>
         <nav>
           {[
-            { id: 'pending', icon: '📋', label: 'Appointments' },
+            { id: 'pending', icon: '⏳', label: 'Pending' },
             { id: 'approved', icon: '✅', label: 'Approved' },
-            { id: 'rejected', icon: '❌', label: 'Rejected' },
-            { id: 'today', icon: '📅', label: "Today's Visits" },
             { id: 'doctors', icon: '👨⚕️', label: 'Doctors' },
             { id: 'followups', icon: '📨', label: 'Follow-ups' }
           ].map(item => (
@@ -321,74 +235,16 @@ function Dashboard() {
           <h2 style={{ margin: 0, fontSize: '28px', color: '#1e293b', fontWeight: '700' }}>
             {activeTab === 'pending' && '⏳ Pending Appointments'}
             {activeTab === 'approved' && '✅ Approved Appointments'}
-            {activeTab === 'rejected' && '❌ Rejected Appointments'}
-            {activeTab === 'today' && '📅 Today\'s Visits'}
             {activeTab === 'doctors' && '👨⚕️ Doctors Management'}
             {activeTab === 'followups' && '📨 Follow-ups'}
           </h2>
-          <button onClick={() => activeTab === 'doctors' ? fetchDoctors() : activeTab === 'today' ? fetchTodayVisits() : fetchAppointments()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+          <button onClick={() => activeTab === 'doctors' ? fetchDoctors() : fetchAppointments()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
             🔄 Refresh
           </button>
         </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>Loading...</div>
-        ) : activeTab === 'today' ? (
-          <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Token</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Patient</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Phone</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Doctor</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Time Slot</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '16px', textAlign: 'center' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {todayVisits.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                      📭 No appointments for today
-                    </td>
-                  </tr>
-                ) : (
-                  todayVisits.map((visit, i) => (
-                  <tr key={visit.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>
-                      {visit.token_number ? (
-                        <span style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>
-                          🎫 #{visit.token_number}
-                        </span>
-                      ) : (
-                        <span style={{ padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#64748b', borderRadius: '6px', fontSize: '13px' }}>-</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>👤 {visit.patient_name}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>📞 {visit.phone}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {visit.doctor}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {visit.time_slot}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : '#fef3c7', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {visit.status === 'completed' ? '✅ Completed' : visit.status === 'visited' ? '🏥 Visited' : '⏳ Accepted'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      {visit.status === 'accepted' && (
-                        <button onClick={() => handleMarkVisited(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🏥 Mark Visited</button>
-                      )}
-                      {visit.status === 'visited' && (
-                        <button onClick={() => handleMarkCompleted(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Mark Completed</button>
-                      )}
-                    </td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
         ) : activeTab === 'followups' ? (
           <div>
             <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', marginBottom: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
@@ -431,14 +287,7 @@ function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {followups.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                        📭 No follow-ups created yet
-                      </td>
-                    </tr>
-                  ) : (
-                    followups.map((f, i) => (
+                  {followups.map((f, i) => (
                     <tr key={f.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                       <td style={{ padding: '16px', textAlign: 'left' }}>📞 {f.phone}</td>
                       <td style={{ padding: '16px', textAlign: 'left' }}>{f.patient_name || '-'}</td>
@@ -457,8 +306,7 @@ function Dashboard() {
                         )}
                       </td>
                     </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -466,7 +314,7 @@ function Dashboard() {
         ) : activeTab === 'doctors' ? (
           <div>
             <div style={{ marginBottom: '24px', textAlign: 'right' }}>
-              <button onClick={() => { setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' }); setShowDoctorModal(true) }} style={{ padding: '12px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+              <button onClick={() => { setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '' }); setShowDoctorModal(true) }} style={{ padding: '12px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
                 ➕ Add Doctor
               </button>
             </div>
@@ -475,19 +323,12 @@ function Dashboard() {
                 <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
                   <h3 style={{ margin: '0 0 24px 0' }}>{editingDoctor ? 'Edit' : 'Add'} Doctor</h3>
                   <input type="text" placeholder="Name" value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <select value={doctorForm.categoryId} onChange={(e) => setDoctorForm({ ...doctorForm, categoryId: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }}>
+                  <select value={doctorForm.categoryId} onChange={(e) => setDoctorForm({ ...doctorForm, categoryId: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '24px', border: '2px solid #e2e8f0', borderRadius: '8px' }}>
                     <option value="">Select Category</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  {!editingDoctor && (
-                    <>
-                      <input type="number" placeholder="Slots Per Day" value={doctorForm.slotsPerDay} onChange={(e) => setDoctorForm({ ...doctorForm, slotsPerDay: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                      <input type="time" placeholder="Start Time" value={doctorForm.startTime} onChange={(e) => setDoctorForm({ ...doctorForm, startTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                      <input type="time" placeholder="End Time" value={doctorForm.endTime} onChange={(e) => setDoctorForm({ ...doctorForm, endTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                    </>
-                  )}
                   <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                    <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                     <button onClick={handleSaveDoctor} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
                   </div>
                 </div>
@@ -504,58 +345,46 @@ function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {doctors.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                        📭 No doctors added yet
-                      </td>
-                    </tr>
-                  ) : (
-                    doctors.map((doc, i) => (
+                  {doctors.map((doc, i) => (
                     <>
                       <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                         <td style={{ padding: '16px', textAlign: 'left' }}>{doc.id}</td>
                         <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {doc.name}</td>
                         <td style={{ padding: '16px', textAlign: 'left' }}>🏥 {doc.category}</td>
                         <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <button onClick={() => { const cat = categories.find(c => c.name === doc.category); setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: cat?.id || '', slotsPerDay: '', startTime: '', endTime: '' }); setShowDoctorModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>✏️ Edit</button>
+                          <button onClick={() => { const cat = categories.find(c => c.name === doc.category); setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: cat?.id || '' }); setShowDoctorModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>✏️ Edit</button>
                           <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>🗑️ Delete</button>
-                          <button onClick={() => { if (selectedDoctor?.id === doc.id) { setSelectedDoctor(null); setDoctorSlots([]) } else { setSelectedDoctor(doc); fetchDoctorSlots(doc.id) } }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                            {selectedDoctor?.id === doc.id ? '▲ Hide' : '📋 Bookings'}
+                          <button onClick={() => { if (selectedDoctor?.id === doc.id) { setSelectedDoctor(null); setTimeSlots([]) } else { setSelectedDoctor(doc); fetchTimeSlots(doc.id) } }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                            {selectedDoctor?.id === doc.id ? '▲ Hide' : '🕐 Slots'}
                           </button>
                         </td>
                       </tr>
                       {selectedDoctor?.id === doc.id && (
                         <tr style={{ backgroundColor: '#f9fafb' }}>
                           <td colSpan="4" style={{ padding: '16px' }}>
-                            {doctorSlots.length === 0 ? (
-                              <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No bookings yet</div>
-                            ) : (
-                              doctorSlots.map(slot => (
-                                <div key={`${slot.date}_${slot.time_slot}`} style={{ marginBottom: '16px', padding: '16px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                  <div style={{ fontWeight: '600', marginBottom: '12px', fontSize: '14px' }}>📅 {slot.date} - 🕐 {slot.time_slot}</div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                                    {slot.patients.map(p => (
-                                      <div key={p.id} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                        <div style={{ fontSize: '13px', marginBottom: '4px' }}><strong>👤 {p.patient_name}</strong></div>
-                                        <div style={{ fontSize: '12px', color: '#64748b' }}>📞 {p.phone}</div>
-                                        <div style={{ fontSize: '12px', marginTop: '6px' }}>
-                                          <span style={{ padding: '4px 8px', backgroundColor: p.status === 'completed' ? '#d1fae5' : p.status === 'visited' ? '#e0e7ff' : p.status === 'accepted' ? '#dbeafe' : '#fef3c7', color: p.status === 'completed' ? '#065f46' : p.status === 'visited' ? '#3730a3' : p.status === 'accepted' ? '#1e40af' : '#92400e', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
-                                            {p.status === 'completed' ? '✅ Completed' : p.status === 'visited' ? '🏥 Visited' : p.status === 'accepted' ? '✅ Accepted' : '⏳ Pending'}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
+                            {Object.entries(timeSlots.reduce((acc, slot) => {
+                              const date = new Date(slot.slot_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                              if (!acc[date]) acc[date] = []
+                              acc[date].push(slot)
+                              return acc
+                            }, {})).slice(0, 4).map(([date, slots]) => (
+                              <div key={date} style={{ marginBottom: '16px' }}>
+                                <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>📅 {date}</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                  {slots.map(slot => (
+                                    <div key={slot.id} style={{ padding: '12px', backgroundColor: slot.is_booked ? '#fee2e2' : '#d1fae5', color: slot.is_booked ? '#991b1b' : '#065f46', borderRadius: '6px', textAlign: 'center', fontSize: '13px', fontWeight: '600' }}>
+                                      {slot.time}
+                                      <div style={{ fontSize: '11px', marginTop: '4px' }}>{slot.is_booked ? '❌ Booked' : '✅ Available'}</div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))
-                            )}
+                              </div>
+                            ))}
                           </td>
                         </tr>
                       )}
                     </>
-                    ))
-                  )}
+                  ))}}
                 </tbody>
               </table>
             </div>
@@ -576,14 +405,7 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {appointments.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                      📭 No {activeTab === 'pending' ? 'pending' : activeTab === 'approved' ? 'approved' : 'rejected'} appointments
-                    </td>
-                  </tr>
-                ) : (
-                  appointments.map((apt, i) => (
+                {appointments.map((apt, i) => (
                   <tr key={apt.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                     <td style={{ padding: '16px', textAlign: 'left' }}>👤 {apt.patient_name}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>📞 {apt.phone}</td>
@@ -592,8 +414,8 @@ function Dashboard() {
                     <td style={{ padding: '16px', textAlign: 'left' }}>📅 {apt.date}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {apt.time_slot}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'accepted' ? '#d1fae5' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'accepted' ? '#065f46' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {apt.status === 'accepted' ? '✅' : apt.status === 'rejected' ? '❌' : '⏳'} {apt.status.toUpperCase()}
+                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'accepted' ? '#d1fae5' : '#fef3c7', color: apt.status === 'accepted' ? '#065f46' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {apt.status === 'accepted' ? '✅' : '⏳'} {apt.status.toUpperCase()}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -602,17 +424,12 @@ function Dashboard() {
                           <button onClick={() => handleAccept(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Accept</button>
                           <button onClick={() => handleReject(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>❌ Reject</button>
                         </div>
-                      ) : activeTab === 'approved' ? (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button onClick={() => handleMarkVisited(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🏥 Mark Visited</button>
-                          <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
-                          <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
-                        </div>
-                      ) : null}
+                      ) : (
+                        <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
+                      )}
                     </td>
                   </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>

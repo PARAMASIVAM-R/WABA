@@ -16,7 +16,7 @@ const pool = mysql.createPool({
 // Get all doctors with their categories
 router.get('/doctors', async (req, res) => {
   const [rows] = await pool.query(`
-    SELECT d.id, d.name, c.name as category
+    SELECT d.id, d.name, c.name as category, d.slots_per_day, d.start_time, d.end_time
     FROM doctors d
     JOIN categories c ON d.category_id = c.id
     ORDER BY c.name, d.name
@@ -24,11 +24,63 @@ router.get('/doctors', async (req, res) => {
   res.json({ doctors: rows })
 })
 
-// Get time slots for a doctor
+// Get appointments for a doctor (grouped by date and time)
 router.get('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
-  const slots = await getAllTimeSlotsByDoctor(parseInt(doctorId))
-  res.json({ slots })
+  
+  const [doctor] = await pool.query(
+    'SELECT name, slots_per_day, start_time, end_time FROM doctors WHERE id = ?',
+    [doctorId]
+  ) as any
+  
+  if (!doctor[0]) {
+    return res.json({ slots: [] })
+  }
+  
+  const [appointments] = await pool.query(
+    `SELECT id, patient_name, phone, date, time_slot, status, token_number, created_at
+     FROM appointments 
+     WHERE doctor = ?
+     ORDER BY date DESC, time_slot, created_at`,
+    [doctor[0].name]
+  ) as any
+  
+  res.json({ 
+    appointments,
+    config: doctor[0]
+  })
+})
+
+// Get today's visits
+router.get('/today', async (req, res) => {
+  try {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    const todayStr = `${year}-${month}-${day}`
+    
+    console.log('\n=== TODAY VISITS REQUEST ===')
+    console.log('Looking for date:', todayStr)
+    
+    // First check all appointments to debug
+    const [allRows] = await pool.query('SELECT id, patient_name, date, status FROM appointments ORDER BY date DESC LIMIT 10') as any
+    console.log('Recent appointments in DB:', allRows)
+    
+    const [rows] = await pool.query(`
+      SELECT * FROM appointments 
+      WHERE DATE(date) = ? AND status IN ('accepted', 'visited', 'completed')
+      ORDER BY doctor, time_slot, token_number
+    `, [todayStr]) as any
+    
+    console.log('Matching today visits:', rows.length)
+    console.log('===========================\n')
+    
+    res.json({ appointments: rows })
+  } catch (error) {
+    console.error('Error fetching today visits:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 // Get pending appointments
@@ -55,10 +107,73 @@ router.post('/:id/accept', async (req, res) => {
   const apt = appointment[0]
   await sendText(
     apt.phone,
-    `✅ Appointment Confirmed!\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nYour appointment has been confirmed. Please arrive 10 minutes early.\n\nThank you! 🙏`
+    `✅ Appointment Accepted!\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nYour appointment has been accepted. On the appointment date, please visit the hospital. You will receive a token number after the receptionist confirms your visit.\n\nThank you! 🙏`
   )
   
   res.json({ success: true, message: 'Appointment accepted' })
+})
+
+// Mark patient as visited and assign token
+router.post('/:id/visited', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [appointment] = await pool.query('SELECT * FROM appointments WHERE id = ?', [id]) as any
+    if (!appointment[0]) {
+      return res.status(404).json({ error: 'Appointment not found' })
+    }
+
+    const apt = appointment[0]
+    
+    // Get the highest token number for today across all doctors
+    const [maxToken] = await pool.query(
+      `SELECT MAX(token_number) as max_token FROM appointments 
+       WHERE DATE(date) = DATE(?) AND token_number IS NOT NULL`,
+      [apt.date]
+    ) as any
+    
+    const tokenNumber = (maxToken[0].max_token || 0) + 1
+    
+    await pool.query(
+      'UPDATE appointments SET status = ?, token_number = ? WHERE id = ?',
+      ['visited', tokenNumber, id]
+    )
+    
+    await sendText(
+      apt.phone,
+      `🎫 Token Assigned!\n\n👤 Name: ${apt.patient_name}\n🎫 Token Number: ${tokenNumber}\n👨⚕️ Doctor: ${apt.doctor}\n🕐 Time Slot: ${apt.time_slot}\n\nPlease wait for your token to be called. Thank you! 🙏`
+    )
+    
+    res.json({ success: true, message: 'Patient marked as visited', tokenNumber })
+  } catch (error) {
+    console.error('Error marking as visited:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Mark as completed
+router.post('/:id/completed', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [appointment] = await pool.query('SELECT * FROM appointments WHERE id = ?', [id]) as any
+    if (!appointment[0]) {
+      return res.status(404).json({ error: 'Appointment not found' })
+    }
+
+    await pool.query('UPDATE appointments SET status = ? WHERE id = ?', ['completed', id])
+    
+    const apt = appointment[0]
+    await sendText(
+      apt.phone,
+      `✅ Checkup Completed!\n\n👤 Name: ${apt.patient_name}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n\nYour checkup has been completed successfully. Thank you for visiting our hospital!\n\nIf you need any further assistance or have questions about your treatment, please feel free to contact us.\n\nTake care! 🙏`
+    )
+    
+    res.json({ success: true, message: 'Checkup completed' })
+  } catch (error) {
+    console.error('Error marking as completed:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 // Suggest alternate slot
@@ -100,22 +215,13 @@ router.post('/:id/reject', async (req, res) => {
     ['rejected', reason, id]
   )
   
-  // Free up the time slot - find and mark as available
   const apt = appointment[0]
-  await pool.query(
-    `UPDATE time_slots ts
-     JOIN doctors d ON ts.doctor_id = d.id
-     SET ts.is_booked = FALSE
-     WHERE d.name = ? AND TIME_FORMAT(ts.start_time, '%h:%i %p') = ?`,
-    [apt.doctor, apt.time_slot]
-  )
-  
   await sendText(
     apt.phone,
     `❌ Appointment Request Declined\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nReason: ${reason}\n\nPlease contact the hospital or try booking again with a different time.`
   )
   
-  res.json({ success: true, message: 'Appointment rejected and slot freed' })
+  res.json({ success: true, message: 'Appointment rejected' })
 })
 
 // Get categories
@@ -126,8 +232,11 @@ router.get('/categories', async (req, res) => {
 
 // Create doctor
 router.post('/doctors', async (req, res) => {
-  const { name, categoryId } = req.body
-  await createDoctor(name, categoryId)
+  const { name, categoryId, slotsPerDay, startTime, endTime } = req.body
+  const [result] = await pool.query(
+    'INSERT INTO doctors (name, category_id, slots_per_day, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+    [name, categoryId, slotsPerDay, startTime, endTime]
+  )
   res.json({ success: true, message: 'Doctor created' })
 })
 
