@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 const API_URL = 'http://localhost:3000'
 
 function Dashboard() {
-  const [activeTab, setActiveTab] = useState('pending')
+  const [activeTab, setActiveTab] = useState('appointments')
   const [appointments, setAppointments] = useState([])
   const [todayVisits, setTodayVisits] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -33,7 +33,7 @@ function Dashboard() {
       fetchTemplates()
     } else if (activeTab === 'today') {
       fetchTodayVisits()
-    } else {
+    } else if (activeTab === 'appointments') {
       fetchAppointments()
     }
   }, [activeTab])
@@ -41,17 +41,9 @@ function Dashboard() {
   const fetchAppointments = async () => {
     setLoading(true)
     try {
-      const endpoint = activeTab === 'pending' ? `${API_URL}/admin/appointments/pending` : `${API_URL}/appointments`
-      const res = await fetch(endpoint)
+      const res = await fetch(`${API_URL}/appointments`)
       const data = await res.json()
-      const allAppointments = data.appointments || []
-      if (activeTab === 'approved') {
-        setAppointments(allAppointments.filter(apt => apt.status === 'accepted'))
-      } else if (activeTab === 'rejected') {
-        setAppointments(allAppointments.filter(apt => apt.status === 'rejected'))
-      } else {
-        setAppointments(allAppointments)
-      }
+      setAppointments(data.appointments || [])
     } catch (error) {
       console.error(error)
     }
@@ -287,9 +279,7 @@ function Dashboard() {
         </div>
         <nav>
           {[
-            { id: 'pending', icon: '📋', label: 'Appointments' },
-            { id: 'approved', icon: '✅', label: 'Approved' },
-            { id: 'rejected', icon: '❌', label: 'Rejected' },
+            { id: 'appointments', icon: '📋', label: 'Appointments' },
             { id: 'today', icon: '📅', label: "Today's Visits" },
             { id: 'doctors', icon: '👨⚕️', label: 'Doctors' },
             { id: 'followups', icon: '📨', label: 'Follow-ups' }
@@ -319,14 +309,12 @@ function Dashboard() {
       <div style={{ flex: 1, padding: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
           <h2 style={{ margin: 0, fontSize: '28px', color: '#1e293b', fontWeight: '700' }}>
-            {activeTab === 'pending' && '⏳ Pending Appointments'}
-            {activeTab === 'approved' && '✅ Approved Appointments'}
-            {activeTab === 'rejected' && '❌ Rejected Appointments'}
+            {activeTab === 'appointments' && '📋 All Appointments'}
             {activeTab === 'today' && '📅 Today\'s Visits'}
             {activeTab === 'doctors' && '👨⚕️ Doctors Management'}
             {activeTab === 'followups' && '📨 Follow-ups'}
           </h2>
-          <button onClick={() => activeTab === 'doctors' ? fetchDoctors() : activeTab === 'today' ? fetchTodayVisits() : fetchAppointments()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+          <button onClick={() => activeTab === 'doctors' ? fetchDoctors() : activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : fetchFollowups()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
             🔄 Refresh
           </button>
         </div>
@@ -382,6 +370,72 @@ function Dashboard() {
                       {visit.status === 'visited' && (
                         <button onClick={() => handleMarkCompleted(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Mark Completed</button>
                       )}
+                    </td>
+                  </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : activeTab === 'appointments' ? (
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Patient</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Phone</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Doctor</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Time</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Token</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appointments.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
+                      📭 No appointments yet
+                    </td>
+                  </tr>
+                ) : (
+                  appointments.map((apt, i) => (
+                  <tr key={apt.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>👤 {apt.patient_name}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>📞 {apt.phone}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>🏥 {apt.category}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {apt.doctor}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>📅 {apt.date}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {apt.time_slot}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>
+                      {apt.token_number ? (
+                        <span style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>
+                          🎫 #{apt.token_number}
+                        </span>
+                      ) : (
+                        <span style={{ padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#64748b', borderRadius: '6px', fontSize: '13px' }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>
+                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        {apt.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleAccept(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Accept</button>
+                            <button onClick={() => handleReject(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>❌ Reject</button>
+                            <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
+                          </>
+                        )}
+                        {(apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'rejected') && (
+                          <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   ))
@@ -560,63 +614,7 @@ function Dashboard() {
               </table>
             </div>
           </div>
-        ) : (
-          <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Patient</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Phone</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Doctor</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Time</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {appointments.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                      📭 No {activeTab === 'pending' ? 'pending' : activeTab === 'approved' ? 'approved' : 'rejected'} appointments
-                    </td>
-                  </tr>
-                ) : (
-                  appointments.map((apt, i) => (
-                  <tr key={apt.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>👤 {apt.patient_name}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>📞 {apt.phone}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>🏥 {apt.category}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {apt.doctor}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>📅 {apt.date}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {apt.time_slot}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'accepted' ? '#d1fae5' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'accepted' ? '#065f46' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {apt.status === 'accepted' ? '✅' : apt.status === 'rejected' ? '❌' : '⏳'} {apt.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      {activeTab === 'pending' ? (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button onClick={() => handleAccept(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Accept</button>
-                          <button onClick={() => handleReject(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>❌ Reject</button>
-                        </div>
-                      ) : activeTab === 'approved' ? (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button onClick={() => handleMarkVisited(apt.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🏥 Mark Visited</button>
-                          <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
-                          <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

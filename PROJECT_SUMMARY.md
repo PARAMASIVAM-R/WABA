@@ -9,6 +9,7 @@ All features implemented and tested successfully!
 ## 🎯 Features Implemented
 
 ### 1. **Patient Booking Flow** (WhatsApp Bot)
+
 - ✅ 6-step conversational booking
 - ✅ Interactive lists for selections
 - ✅ Category → Doctor → Date → Time → Name → Confirmation
@@ -17,6 +18,7 @@ All features implemented and tested successfully!
 - ✅ Pending status until admin approval
 
 ### 2. **Admin Dashboard** (React Frontend)
+
 - ✅ **Pending Tab**: View and manage pending appointments
   - Accept appointments
   - Suggest alternate slots
@@ -33,6 +35,7 @@ All features implemented and tested successfully!
   - Send now functionality
 
 ### 3. **Slot Management System**
+
 - ✅ 4 unique time slots per doctor
 - ✅ Real-time booking tracking (is_booked column)
 - ✅ Automatic slot marking on booking
@@ -40,6 +43,7 @@ All features implemented and tested successfully!
 - ✅ Only available slots shown to patients
 
 ### 4. **Follow-up System**
+
 - ✅ Create follow-ups for any patient
 - ✅ 4 pre-defined templates:
   - Checkup Reminder
@@ -55,6 +59,7 @@ All features implemented and tested successfully!
 ## 📊 Database Schema
 
 ### Tables Created:
+
 1. **categories** (5 records)
    - General Medicine, Cardiology, Dermatology, Pediatrics, Orthopedics
 
@@ -80,15 +85,18 @@ All features implemented and tested successfully!
 ## 🔌 API Endpoints
 
 ### WhatsApp Webhook
+
 - `GET /webhooks/whatsapp` - Webhook verification
 - `POST /webhooks/whatsapp` - Receive messages
 - `POST /webhooks/whatsapp/test` - Test endpoint
 
 ### Appointments
+
 - `GET /appointments` - All appointments
 - `GET /appointments/:phone` - By phone number
 
 ### Admin - Appointments
+
 - `GET /admin/appointments/pending` - Pending appointments
 - `POST /admin/appointments/:id/accept` - Accept appointment
 - `POST /admin/appointments/:id/alternate` - Suggest alternate
@@ -97,12 +105,14 @@ All features implemented and tested successfully!
 - `GET /admin/appointments/doctors/:id/slots` - Doctor's time slots
 
 ### Admin - Follow-ups
+
 - `POST /admin/followups` - Create follow-up
 - `GET /admin/followups` - List all follow-ups
 - `POST /admin/followups/:id/send` - Send follow-up message
 - `GET /admin/followups/templates` - Get templates
 
 ### Messaging
+
 - `POST /invite/send` - Send text message
 
 ---
@@ -110,27 +120,35 @@ All features implemented and tested successfully!
 ## 🧪 Testing Scripts
 
 ### 1. **System Health Check**
+
 ```bash
 npx ts-node src/test-system.ts
 ```
+
 Tests: Environment, Database, Server, WhatsApp API, ngrok, Webhooks, Admin endpoints
 
 ### 2. **WhatsApp API Test**
+
 ```bash
 npx ts-node src/test-api.ts
 ```
+
 Validates WhatsApp credentials and sends test message
 
 ### 3. **Complete Flow Demo**
+
 ```bash
 npx ts-node src/demo.ts
 ```
+
 Simulates entire booking flow with dummy data
 
 ### 4. **Database Setup**
+
 ```bash
 npx ts-node src/setup-db.ts
 ```
+
 Drops and recreates all tables with seed data
 
 ---
@@ -138,6 +156,7 @@ Drops and recreates all tables with seed data
 ## 🚀 Deployment Checklist
 
 ### Backend (Node.js + Express)
+
 - [x] Environment variables configured
 - [x] Database connected (MySQL)
 - [x] WhatsApp API integrated
@@ -147,6 +166,7 @@ Drops and recreates all tables with seed data
 - [x] CORS enabled
 
 ### Frontend (React)
+
 - [x] 4 tabs implemented (Pending, Approved, Doctors, Follow-ups)
 - [x] Table layouts with actions
 - [x] Color-coded status indicators
@@ -156,12 +176,14 @@ Drops and recreates all tables with seed data
 - [x] Blue theme (#1e40af)
 
 ### Database (MySQL)
+
 - [x] 5 tables created
 - [x] Foreign key relationships
 - [x] Seed data populated
 - [x] Indexes on frequently queried columns
 
 ### WhatsApp Integration
+
 - [x] Access token configured
 - [x] Phone number ID configured
 - [x] Webhook URL configured
@@ -173,11 +195,13 @@ Drops and recreates all tables with seed data
 ## 💰 Production Costs (Meta WhatsApp API)
 
 ### For 5,000 appointments/month in India:
+
 - **WhatsApp API**: ~$32/month
 - **With follow-up reminders**: ~$102/month
 - **Free tier**: First 1,000 conversations/month
 
 ### No other Meta fees:
+
 - ❌ No setup fees
 - ❌ No monthly subscription
 - ❌ No API access fees
@@ -225,20 +249,26 @@ Patient: Receives reminder message
 ## 🔧 Troubleshooting
 
 ### Issue: WhatsApp not receiving messages
-**Solution**: 
+
+**Solution**:
+
 1. Update webhook URL in Meta console
 2. Ensure "messages" field is subscribed
 3. Add phone to test numbers
 4. Check ngrok is running
 
 ### Issue: Access token expired
-**Solution**: 
+
+**Solution**:
+
 1. Generate new token from Meta console
 2. Update .env file
 3. Restart server
 
 ### Issue: Database connection error
-**Solution**: 
+
+**Solution**:
+
 1. Check MySQL is running
 2. Verify credentials in .env
 3. Run: `npx ts-node src/setup-db.ts`
@@ -303,3 +333,17 @@ npx ts-node src/setup-db.ts
 ---
 
 **System is production-ready! 🎉**
+
+Appointments Tab:
+
+⏳ Pending → Accept, Reject, Change Slot
+✅ Accepted → Follow-up only
+🏥 Visited → Follow-up only
+❌ Rejected → Follow-up only
+✅ Completed → Follow-up only
+
+Today's Visits Tab:
+
+✅ Accepted → Mark Visited (assign token)
+🏥 Visited → Mark Completed
+✅ Completed → No actions
