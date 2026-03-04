@@ -118,7 +118,15 @@ export async function processBookingMessage(message: {
         await sendText(phone, response)
         break
       }
-      session.data.date = input
+      
+      // Convert "today"/"tomorrow" to actual date
+      const dateIndex = validDates.indexOf(input)
+      const actualDate = new Date()
+      actualDate.setDate(actualDate.getDate() + dateIndex)
+      const formattedDate = actualDate.toISOString().split('T')[0] // YYYY-MM-DD
+      
+      session.data.date = formattedDate as string | undefined
+      session.data.dateDisplay = input as string | undefined
       
       const catForSlots = await getCategories()
       const categoryObj = catForSlots.find(c => c.name === session.data.category)
@@ -126,21 +134,88 @@ export async function processBookingMessage(message: {
       const doctorsForSlots = await getDoctorsByCategory(categoryObj.id)
       const doctorObj = doctorsForSlots.find(d => d.name === session.data.doctor)
       if (!doctorObj) break
-      const timeSlots = await getTimeSlotsByDoctor(doctorObj.id)
+      
+      // Get time slots from database
+      const mysql = require('mysql2/promise')
+      const { env } = require('../config/env')
+      const pool = mysql.createPool({
+        host: env.dbHost,
+        user: env.dbUser,
+        password: env.dbPassword,
+        database: env.dbName
+      })
+      
+      const timeSlots = []
+      
+      try {
+        // Fetch configured time slots for this doctor
+        const [slots] = await pool.query(
+          'SELECT * FROM time_slots WHERE doctor_id = ? ORDER BY start_time',
+          [doctorObj.id]
+        ) as any
+        
+        if (slots.length === 0) {
+          response = '❌ No time slots available for this doctor. Please contact admin.'
+          await sendText(phone, response)
+          break
+        }
+        
+        console.log('Doctor time slots:', slots)
+        console.log('Checking availability for date:', formattedDate)
+        
+        for (const slot of slots) {
+          const formatTime = (timeStr: string) => {
+            const [h, m] = timeStr.split(':')
+            const hour = parseInt(h || '0')
+            const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+            const ampm = hour >= 12 ? 'PM' : 'AM'
+            return `${hour12}:${m || '00'} ${ampm}`
+          }
+          
+          if (!slot.start_time || !slot.end_time) continue
+          
+          const slotTime = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`
+          
+          // Count existing bookings for this slot
+          const [bookings] = await pool.query(
+            `SELECT COUNT(*) as count FROM appointments 
+             WHERE doctor = ? AND date = ? AND time_slot = ? AND status IN ('pending', 'accepted', 'visited')`,
+            [session.data.doctor, formattedDate, slotTime]
+          ) as any
+          
+          const bookedCount = bookings[0].count
+          const availableSpots = slot.capacity - bookedCount
+          
+          console.log(`Slot ${slotTime}: ${bookedCount}/${slot.capacity} booked, ${availableSpots} available`)
+          
+          // Only show slots with available capacity
+          if (availableSpots > 0) {
+            timeSlots.push({
+              id: slot.id.toString(),
+              title: slotTime
+            })
+          }
+        }
+      } finally {
+        await pool.end()
+      }
+      
+      console.log('Total available slots:', timeSlots.length)
       
       if (timeSlots.length === 0) {
-        response = '❌ No time slots available for this doctor.'
+        response = '❌ All slots are fully booked for this date. Please select another date or try a different doctor.'
         await sendText(phone, response)
+        session.state = 'booking_date'
         break
       }
       
       await sendInteractiveList(
         phone,
-        '🕐 Select your preferred time (15-minute slots):',
+        '🕐 Select your preferred time slot:',
         'Select Time',
         [{
           title: 'Available Slots',
-          rows: timeSlots.slice(0, 10).map(t => ({ id: t.id.toString(), title: t.time }))
+          rows: timeSlots
         }]
       )
       session.state = 'booking_time'
@@ -148,22 +223,7 @@ export async function processBookingMessage(message: {
       break
 
     case 'booking_time':
-      const catForTime = await getCategories()
-      const categoryForTime = catForTime.find(c => c.name === session.data.category)
-      if (!categoryForTime) break
-      const doctorsForTime = await getDoctorsByCategory(categoryForTime.id)
-      const doctorForTime = doctorsForTime.find(d => d.name === session.data.doctor)
-      if (!doctorForTime) break
-      const slots = await getTimeSlotsByDoctor(doctorForTime.id)
-      const validTime = slots.find(s => s.time.toLowerCase() === input)
-      
-      if (!validTime) {
-        response = '❌ Please select a time from the list provided.'
-        await sendText(phone, response)
-        break
-      }
-      session.data.time = validTime.time
-      session.data.timeSlotId = validTime.id
+      session.data.time = message.text
       response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
       await sendText(phone, response)
       session.state = 'booking_name'
@@ -179,10 +239,11 @@ export async function processBookingMessage(message: {
         session.data.doctor!, 
         session.data.date!, 
         session.data.time!,
-        session.data.timeSlotId!
+        0 // No timeSlotId needed anymore
       )
       
-      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${session.data.date}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
+      const displayDate = session.data.dateDisplay || session.data.date || 'N/A'
+      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
       await sendText(phone, response)
       clearSession(phone)
       return response

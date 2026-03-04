@@ -9,19 +9,31 @@ export type BookingState =
 interface Session {
   state: BookingState
   data: {
-    category?: string
-    doctor?: string
-    date?: string
-    time?: string
-    timeSlotId?: number
-    name?: string
+    category: string | undefined
+    doctor: string | undefined
+    date: string | undefined
+    dateDisplay: string | undefined
+    time: string | undefined
+    timeSlotId: number | undefined
+    name: string | undefined
   }
 }
 
 const sessions = new Map<string, Session>()
 
 export function getSession(phone: string): Session {
-  return sessions.get(phone) || { state: 'idle', data: {} }
+  return sessions.get(phone) || { 
+    state: 'idle', 
+    data: {
+      category: undefined,
+      doctor: undefined,
+      date: undefined,
+      dateDisplay: undefined,
+      time: undefined,
+      timeSlotId: undefined,
+      name: undefined
+    }
+  }
 }
 
 export function saveSession(phone: string, session: Session) {
