@@ -135,23 +135,7 @@ export async function processBookingMessage(message: {
       const doctorObj = doctorsForSlots.find(d => d.name === session.data.doctor)
       if (!doctorObj) break
       
-      // Generate time slots based on doctor configuration
-      const slotsPerDay = doctorObj.slots_per_day || 4
-      const capacityPerSlot = doctorObj.capacity_per_slot || 5
-      const startTime = doctorObj.start_time || '09:00:00'
-      const endTime = doctorObj.end_time || '17:00:00'
-      const timeSlots = []
-      
-      console.log('Doctor config:', { slotsPerDay, capacityPerSlot, startTime, endTime })
-      console.log('Checking availability for date:', formattedDate)
-      
-      const [startHours, startMinutes] = startTime.split(':')
-      const [endHours, endMinutes] = endTime.split(':')
-      const startMinutesTotal = parseInt(startHours) * 60 + parseInt(startMinutes)
-      const endMinutesTotal = parseInt(endHours) * 60 + parseInt(endMinutes)
-      const slotDuration = Math.floor((endMinutesTotal - startMinutesTotal) / slotsPerDay)
-      
-      // Get existing bookings for this doctor and date
+      // Get time slots from database
       const mysql = require('mysql2/promise')
       const { env } = require('../config/env')
       const pool = mysql.createPool({
@@ -161,22 +145,36 @@ export async function processBookingMessage(message: {
         database: env.dbName
       })
       
+      const timeSlots = []
+      
       try {
-        for (let i = 0; i < slotsPerDay; i++) {
-          const slotStartMinutes = startMinutesTotal + (i * slotDuration)
-          const slotEndMinutes = slotStartMinutes + slotDuration
-          const slotStartHour = Math.floor(slotStartMinutes / 60)
-          const slotStartMin = slotStartMinutes % 60
-          const slotEndHour = Math.floor(slotEndMinutes / 60)
-          const slotEndMin = slotEndMinutes % 60
-          
-          const formatTime = (h: number, m: number) => {
-            const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h
-            const ampm = h >= 12 ? 'PM' : 'AM'
-            return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`
+        // Fetch configured time slots for this doctor
+        const [slots] = await pool.query(
+          'SELECT * FROM time_slots WHERE doctor_id = ? ORDER BY start_time',
+          [doctorObj.id]
+        ) as any
+        
+        if (slots.length === 0) {
+          response = '❌ No time slots available for this doctor. Please contact admin.'
+          await sendText(phone, response)
+          break
+        }
+        
+        console.log('Doctor time slots:', slots)
+        console.log('Checking availability for date:', formattedDate)
+        
+        for (const slot of slots) {
+          const formatTime = (timeStr: string) => {
+            const [h, m] = timeStr.split(':')
+            const hour = parseInt(h)
+            const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+            const ampm = hour >= 12 ? 'PM' : 'AM'
+            return `${hour12}:${m} ${ampm}`
           }
           
-          const slotTime = `${formatTime(slotStartHour, slotStartMin)} - ${formatTime(slotEndHour, slotEndMin)}`
+          if (!slot.start_time || !slot.end_time) continue
+          
+          const slotTime = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`
           
           // Count existing bookings for this slot
           const [bookings] = await pool.query(
@@ -186,14 +184,14 @@ export async function processBookingMessage(message: {
           ) as any
           
           const bookedCount = bookings[0].count
-          const availableSpots = capacityPerSlot - bookedCount
+          const availableSpots = slot.capacity - bookedCount
           
-          console.log(`Slot ${slotTime}: ${bookedCount}/${capacityPerSlot} booked, ${availableSpots} available`)
+          console.log(`Slot ${slotTime}: ${bookedCount}/${slot.capacity} booked, ${availableSpots} available`)
           
           // Only show slots with available capacity
           if (availableSpots > 0) {
             timeSlots.push({
-              id: i.toString(),
+              id: slot.id.toString(),
               title: slotTime
             })
           }

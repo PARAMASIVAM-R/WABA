@@ -16,7 +16,7 @@ const pool = mysql.createPool({
 // Get all doctors with their categories
 router.get('/doctors', async (req, res) => {
   const [rows] = await pool.query(`
-    SELECT d.id, d.name, c.name as category, d.slots_per_day, d.capacity_per_slot, d.start_time, d.end_time
+    SELECT d.id, d.name, c.name as category
     FROM doctors d
     JOIN categories c ON d.category_id = c.id
     ORDER BY c.name, d.name
@@ -24,18 +24,23 @@ router.get('/doctors', async (req, res) => {
   res.json({ doctors: rows })
 })
 
-// Get appointments for a doctor (grouped by date and time)
+// Get time slots and appointments for a doctor
 router.get('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
   
   const [doctor] = await pool.query(
-    'SELECT name, slots_per_day, capacity_per_slot, start_time, end_time FROM doctors WHERE id = ?',
+    'SELECT name FROM doctors WHERE id = ?',
     [doctorId]
   ) as any
   
   if (!doctor[0]) {
-    return res.json({ slots: [] })
+    return res.json({ timeSlots: [], appointments: [] })
   }
+  
+  const [timeSlots] = await pool.query(
+    'SELECT * FROM time_slots WHERE doctor_id = ? ORDER BY start_time',
+    [doctorId]
+  ) as any
   
   const [appointments] = await pool.query(
     `SELECT id, patient_name, phone, date, time_slot, status, token_number, created_at
@@ -46,8 +51,8 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   ) as any
   
   res.json({ 
-    appointments,
-    config: doctor[0]
+    timeSlots,
+    appointments
   })
 })
 
@@ -232,10 +237,10 @@ router.get('/categories', async (req, res) => {
 
 // Create doctor
 router.post('/doctors', async (req, res) => {
-  const { name, categoryId, slotsPerDay, capacityPerSlot, startTime, endTime } = req.body
+  const { name, categoryId } = req.body
   const [result] = await pool.query(
-    'INSERT INTO doctors (name, category_id, slots_per_day, capacity_per_slot, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
-    [name, categoryId, slotsPerDay, capacityPerSlot || 5, startTime, endTime]
+    'INSERT INTO doctors (name, category_id) VALUES (?, ?)',
+    [name, categoryId]
   )
   res.json({ success: true, message: 'Doctor created' })
 })
@@ -243,32 +248,12 @@ router.post('/doctors', async (req, res) => {
 // Update doctor
 router.put('/doctors/:id', async (req, res) => {
   const { id } = req.params
-  const { name, categoryId, slotsPerDay, capacityPerSlot, startTime, endTime } = req.body
+  const { name, categoryId } = req.body
   
-  let query = 'UPDATE doctors SET name = ?, category_id = ?'
-  let params = [name, categoryId]
-  
-  if (slotsPerDay) {
-    query += ', slots_per_day = ?'
-    params.push(slotsPerDay)
-  }
-  if (capacityPerSlot) {
-    query += ', capacity_per_slot = ?'
-    params.push(capacityPerSlot)
-  }
-  if (startTime) {
-    query += ', start_time = ?'
-    params.push(startTime)
-  }
-  if (endTime) {
-    query += ', end_time = ?'
-    params.push(endTime)
-  }
-  
-  query += ' WHERE id = ?'
-  params.push(id)
-  
-  await pool.query(query, params)
+  await pool.query(
+    'UPDATE doctors SET name = ?, category_id = ? WHERE id = ?',
+    [name, categoryId, id]
+  )
   res.json({ success: true, message: 'Doctor updated' })
 })
 
@@ -282,15 +267,29 @@ router.delete('/doctors/:id', async (req, res) => {
 // Add time slot
 router.post('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
-  const { startTime, endTime } = req.body
-  await createTimeSlot(parseInt(doctorId), startTime, endTime)
+  const { startTime, endTime, capacity } = req.body
+  await pool.query(
+    'INSERT INTO time_slots (doctor_id, start_time, end_time, capacity) VALUES (?, ?, ?, ?)',
+    [doctorId, startTime, endTime, capacity]
+  )
   res.json({ success: true, message: 'Time slot added' })
+})
+
+// Update time slot
+router.put('/slots/:id', async (req, res) => {
+  const { id } = req.params
+  const { startTime, endTime, capacity } = req.body
+  await pool.query(
+    'UPDATE time_slots SET start_time = ?, end_time = ?, capacity = ? WHERE id = ?',
+    [startTime, endTime, capacity, id]
+  )
+  res.json({ success: true, message: 'Time slot updated' })
 })
 
 // Delete time slot
 router.delete('/slots/:id', async (req, res) => {
   const { id } = req.params
-  await deleteTimeSlot(parseInt(id))
+  await pool.query('DELETE FROM time_slots WHERE id = ?', [id])
   res.json({ success: true, message: 'Time slot deleted' })
 })
 
