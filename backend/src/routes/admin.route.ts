@@ -3,6 +3,7 @@ import mysql from 'mysql2/promise'
 import { env } from '../config/env'
 import { sendText } from '../services/whatsapp.service'
 import { getAllTimeSlotsByDoctor, createDoctor, updateDoctor, deleteDoctor, createTimeSlot, deleteTimeSlot, getCategories } from '../services/db.service'
+import { formatDate } from '../utils/date.util'
 
 const router = Router()
 
@@ -112,7 +113,7 @@ router.post('/:id/accept', async (req, res) => {
   const apt = appointment[0]
   await sendText(
     apt.phone,
-    `✅ Appointment Accepted!\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nYour appointment has been accepted. On the appointment date, please visit the hospital. You will receive a token number after the receptionist confirms your visit.\n\nThank you! 🙏`
+    `✅ Appointment Accepted!\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nYour appointment has been accepted. On the appointment date, please visit the hospital. You will receive a token number after the receptionist confirms your visit.\n\nThank you! 🙏`
   )
   
   res.json({ success: true, message: 'Appointment accepted' })
@@ -171,7 +172,7 @@ router.post('/:id/completed', async (req, res) => {
     const apt = appointment[0]
     await sendText(
       apt.phone,
-      `✅ Checkup Completed!\n\n👤 Name: ${apt.patient_name}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n\nYour checkup has been completed successfully. Thank you for visiting our hospital!\n\nIf you need any further assistance or have questions about your treatment, please feel free to contact us.\n\nTake care! 🙏`
+      `✅ Checkup Completed!\n\n👤 Name: ${apt.patient_name}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n\nYour checkup has been completed successfully. Thank you for visiting our hospital!\n\nIf you need any further assistance or have questions about your treatment, please feel free to contact us.\n\nTake care! 🙏`
     )
     
     res.json({ success: true, message: 'Checkup completed' })
@@ -199,7 +200,7 @@ router.post('/:id/alternate', async (req, res) => {
   const apt = appointment[0]
   await sendText(
     apt.phone,
-    `⏰ Alternate Time Suggested\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n\n❌ Requested: ${apt.time_slot}\n✅ Suggested: ${alternateSlot}\n\nThe requested time is not available. Please reply 'accept' to confirm the alternate time or 'reject' to cancel.`
+    `⏰ Alternate Time Suggested\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n\n❌ Requested: ${apt.time_slot}\n✅ Suggested: ${alternateSlot}\n\nThe requested time is not available. Please reply 'accept' to confirm the alternate time or 'reject' to cancel.`
   )
   
   res.json({ success: true, message: 'Alternate slot suggested' })
@@ -223,7 +224,7 @@ router.post('/:id/reject', async (req, res) => {
   const apt = appointment[0]
   await sendText(
     apt.phone,
-    `❌ Appointment Request Declined\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${apt.date}\n🕐 Time: ${apt.time_slot}\n\nReason: ${reason}\n\nPlease contact the hospital or try booking again with a different time.`
+    `❌ Appointment Request Declined\n\n👤 Name: ${apt.patient_name}\n🏥 Category: ${apt.category}\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nReason: ${reason}\n\nPlease contact the hospital or try booking again with a different time.`
   )
   
   res.json({ success: true, message: 'Appointment rejected' })

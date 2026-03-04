@@ -166,10 +166,10 @@ export async function processBookingMessage(message: {
         for (const slot of slots) {
           const formatTime = (timeStr: string) => {
             const [h, m] = timeStr.split(':')
-            const hour = parseInt(h)
+            const hour = parseInt(h || '0')
             const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
             const ampm = hour >= 12 ? 'PM' : 'AM'
-            return `${hour12}:${m} ${ampm}`
+            return `${hour12}:${m || '00'} ${ampm}`
           }
           
           if (!slot.start_time || !slot.end_time) continue
