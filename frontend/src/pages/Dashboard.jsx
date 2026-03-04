@@ -23,6 +23,7 @@ function Dashboard() {
     templateName: '',
     customMessage: ''
   })
+  const [dateFilter, setDateFilter] = useState('')
 
   useEffect(() => {
     if (activeTab === 'doctors') {
@@ -400,7 +401,15 @@ function Dashboard() {
                   <th style={{ padding: '16px', textAlign: 'left' }}>Phone</th>
                   <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
                   <th style={{ padding: '16px', textAlign: 'left' }}>Doctor</th>
-                  <th style={{ padding: '16px', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '16px', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      Date
+                      <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ padding: '6px', border: '1px solid white', borderRadius: '6px', fontSize: '13px', backgroundColor: '#2563eb', color: 'white' }} />
+                      {dateFilter && (
+                        <button onClick={() => setDateFilter('')} style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                      )}
+                    </div>
+                  </th>
                   <th style={{ padding: '16px', textAlign: 'left' }}>Time</th>
                   <th style={{ padding: '16px', textAlign: 'left' }}>Token</th>
                   <th style={{ padding: '16px', textAlign: 'left' }}>Status</th>
@@ -415,7 +424,7 @@ function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((apt, i) => (
+                  appointments.filter(apt => !dateFilter || apt.date === dateFilter).map((apt, i) => (
                   <tr key={apt.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                     <td style={{ padding: '16px', textAlign: 'left' }}>👤 {apt.patient_name}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>📞 {apt.phone}</td>
@@ -446,7 +455,7 @@ function Dashboard() {
                             <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
                           </>
                         )}
-                        {(apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed') && (
+                        {(apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'rejected') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>

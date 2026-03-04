@@ -194,7 +194,7 @@ export async function processBookingMessage(message: {
           if (availableSpots > 0) {
             timeSlots.push({
               id: i.toString(),
-              title: `${slotTime} [${availableSpots}]`
+              title: slotTime
             })
           }
         }
