@@ -16,7 +16,7 @@ const pool = mysql.createPool({
 // Get all doctors with their categories
 router.get('/doctors', async (req, res) => {
   const [rows] = await pool.query(`
-    SELECT d.id, d.name, c.name as category, d.slots_per_day, d.start_time, d.end_time
+    SELECT d.id, d.name, c.name as category, d.slots_per_day, d.capacity_per_slot, d.start_time, d.end_time
     FROM doctors d
     JOIN categories c ON d.category_id = c.id
     ORDER BY c.name, d.name
@@ -29,7 +29,7 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
   
   const [doctor] = await pool.query(
-    'SELECT name, slots_per_day, start_time, end_time FROM doctors WHERE id = ?',
+    'SELECT name, slots_per_day, capacity_per_slot, start_time, end_time FROM doctors WHERE id = ?',
     [doctorId]
   ) as any
   
@@ -232,10 +232,10 @@ router.get('/categories', async (req, res) => {
 
 // Create doctor
 router.post('/doctors', async (req, res) => {
-  const { name, categoryId, slotsPerDay, startTime, endTime } = req.body
+  const { name, categoryId, slotsPerDay, capacityPerSlot, startTime, endTime } = req.body
   const [result] = await pool.query(
-    'INSERT INTO doctors (name, category_id, slots_per_day, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
-    [name, categoryId, slotsPerDay, startTime, endTime]
+    'INSERT INTO doctors (name, category_id, slots_per_day, capacity_per_slot, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
+    [name, categoryId, slotsPerDay, capacityPerSlot || 5, startTime, endTime]
   )
   res.json({ success: true, message: 'Doctor created' })
 })
@@ -243,8 +243,32 @@ router.post('/doctors', async (req, res) => {
 // Update doctor
 router.put('/doctors/:id', async (req, res) => {
   const { id } = req.params
-  const { name, categoryId } = req.body
-  await updateDoctor(parseInt(id), name, categoryId)
+  const { name, categoryId, slotsPerDay, capacityPerSlot, startTime, endTime } = req.body
+  
+  let query = 'UPDATE doctors SET name = ?, category_id = ?'
+  let params = [name, categoryId]
+  
+  if (slotsPerDay) {
+    query += ', slots_per_day = ?'
+    params.push(slotsPerDay)
+  }
+  if (capacityPerSlot) {
+    query += ', capacity_per_slot = ?'
+    params.push(capacityPerSlot)
+  }
+  if (startTime) {
+    query += ', start_time = ?'
+    params.push(startTime)
+  }
+  if (endTime) {
+    query += ', end_time = ?'
+    params.push(endTime)
+  }
+  
+  query += ' WHERE id = ?'
+  params.push(id)
+  
+  await pool.query(query, params)
   res.json({ success: true, message: 'Doctor updated' })
 })
 

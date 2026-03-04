@@ -137,9 +137,13 @@ export async function processBookingMessage(message: {
       
       // Generate time slots based on doctor configuration
       const slotsPerDay = doctorObj.slots_per_day || 4
+      const capacityPerSlot = doctorObj.capacity_per_slot || 5
       const startTime = doctorObj.start_time || '09:00:00'
       const endTime = doctorObj.end_time || '17:00:00'
       const timeSlots = []
+      
+      console.log('Doctor config:', { slotsPerDay, capacityPerSlot, startTime, endTime })
+      console.log('Checking availability for date:', formattedDate)
       
       const [startHours, startMinutes] = startTime.split(':')
       const [endHours, endMinutes] = endTime.split(':')
@@ -147,29 +151,63 @@ export async function processBookingMessage(message: {
       const endMinutesTotal = parseInt(endHours) * 60 + parseInt(endMinutes)
       const slotDuration = Math.floor((endMinutesTotal - startMinutesTotal) / slotsPerDay)
       
-      for (let i = 0; i < slotsPerDay; i++) {
-        const slotStartMinutes = startMinutesTotal + (i * slotDuration)
-        const slotEndMinutes = slotStartMinutes + slotDuration
-        const slotStartHour = Math.floor(slotStartMinutes / 60)
-        const slotStartMin = slotStartMinutes % 60
-        const slotEndHour = Math.floor(slotEndMinutes / 60)
-        const slotEndMin = slotEndMinutes % 60
-        
-        const formatTime = (h: number, m: number) => {
-          const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h
-          const ampm = h >= 12 ? 'PM' : 'AM'
-          return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`
+      // Get existing bookings for this doctor and date
+      const mysql = require('mysql2/promise')
+      const { env } = require('../config/env')
+      const pool = mysql.createPool({
+        host: env.dbHost,
+        user: env.dbUser,
+        password: env.dbPassword,
+        database: env.dbName
+      })
+      
+      try {
+        for (let i = 0; i < slotsPerDay; i++) {
+          const slotStartMinutes = startMinutesTotal + (i * slotDuration)
+          const slotEndMinutes = slotStartMinutes + slotDuration
+          const slotStartHour = Math.floor(slotStartMinutes / 60)
+          const slotStartMin = slotStartMinutes % 60
+          const slotEndHour = Math.floor(slotEndMinutes / 60)
+          const slotEndMin = slotEndMinutes % 60
+          
+          const formatTime = (h: number, m: number) => {
+            const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h
+            const ampm = h >= 12 ? 'PM' : 'AM'
+            return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`
+          }
+          
+          const slotTime = `${formatTime(slotStartHour, slotStartMin)} - ${formatTime(slotEndHour, slotEndMin)}`
+          
+          // Count existing bookings for this slot
+          const [bookings] = await pool.query(
+            `SELECT COUNT(*) as count FROM appointments 
+             WHERE doctor = ? AND date = ? AND time_slot = ? AND status IN ('pending', 'accepted', 'visited')`,
+            [session.data.doctor, formattedDate, slotTime]
+          ) as any
+          
+          const bookedCount = bookings[0].count
+          const availableSpots = capacityPerSlot - bookedCount
+          
+          console.log(`Slot ${slotTime}: ${bookedCount}/${capacityPerSlot} booked, ${availableSpots} available`)
+          
+          // Only show slots with available capacity
+          if (availableSpots > 0) {
+            timeSlots.push({
+              id: i.toString(),
+              title: `${slotTime} [${availableSpots}]`
+            })
+          }
         }
-        
-        timeSlots.push({
-          id: i.toString(),
-          title: `${formatTime(slotStartHour, slotStartMin)} - ${formatTime(slotEndHour, slotEndMin)}`
-        })
+      } finally {
+        await pool.end()
       }
       
+      console.log('Total available slots:', timeSlots.length)
+      
       if (timeSlots.length === 0) {
-        response = '❌ No time slots available for this doctor.'
+        response = '❌ All slots are fully booked for this date. Please select another date or try a different doctor.'
         await sendText(phone, response)
+        session.state = 'booking_date'
         break
       }
       

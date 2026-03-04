@@ -15,7 +15,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [showDoctorModal, setShowDoctorModal] = useState(false)
   const [editingDoctor, setEditingDoctor] = useState(null)
-  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' })
+  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '', slotsPerDay: '', capacityPerSlot: '5', startTime: '', endTime: '' })
   const [followupForm, setFollowupForm] = useState({
     phone: '',
     patientName: '',
@@ -37,6 +37,15 @@ function Dashboard() {
       fetchAppointments()
     }
   }, [activeTab])
+
+  const formatTime12Hour = (time24) => {
+    if (!time24) return ''
+    const [hours, minutes] = time24.split(':')
+    const hour = parseInt(hours)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const hour12 = hour % 12 || 12
+    return `${hour12}:${minutes} ${ampm}`
+  }
 
   const fetchAppointments = async () => {
     setLoading(true)
@@ -203,11 +212,11 @@ function Dashboard() {
 
   const handleSaveDoctor = async () => {
     if (!doctorForm.name || !doctorForm.categoryId) {
-      alert('Please fill all fields')
+      alert('Please fill name and category')
       return
     }
-    if (!editingDoctor && (!doctorForm.slotsPerDay || !doctorForm.startTime || !doctorForm.endTime)) {
-      alert('Please fill slot configuration')
+    if (!doctorForm.slotsPerDay || !doctorForm.capacityPerSlot || !doctorForm.startTime || !doctorForm.endTime) {
+      alert('Please fill all slot configuration fields')
       return
     }
     try {
@@ -215,7 +224,7 @@ function Dashboard() {
         await fetch(`${API_URL}/admin/appointments/doctors/${editingDoctor.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: doctorForm.name, categoryId: doctorForm.categoryId })
+          body: JSON.stringify(doctorForm)
         })
       } else {
         await fetch(`${API_URL}/admin/appointments/doctors`, {
@@ -226,7 +235,7 @@ function Dashboard() {
       }
       setShowDoctorModal(false)
       setEditingDoctor(null)
-      setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' })
+      setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', capacityPerSlot: '5', startTime: '', endTime: '' })
       fetchDoctors()
     } catch (error) {
       alert('Error saving doctor')
@@ -533,13 +542,10 @@ function Dashboard() {
                     <option value="">Select Category</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  {!editingDoctor && (
-                    <>
-                      <input type="number" placeholder="Slots Per Day" value={doctorForm.slotsPerDay} onChange={(e) => setDoctorForm({ ...doctorForm, slotsPerDay: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                      <input type="time" placeholder="Start Time" value={doctorForm.startTime} onChange={(e) => setDoctorForm({ ...doctorForm, startTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                      <input type="time" placeholder="End Time" value={doctorForm.endTime} onChange={(e) => setDoctorForm({ ...doctorForm, endTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                    </>
-                  )}
+                  <input type="number" placeholder="Slots Per Day" value={doctorForm.slotsPerDay} onChange={(e) => setDoctorForm({ ...doctorForm, slotsPerDay: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
+                  <input type="number" placeholder="Capacity Per Slot (patients)" value={doctorForm.capacityPerSlot} onChange={(e) => setDoctorForm({ ...doctorForm, capacityPerSlot: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
+                  <input type="time" placeholder="Start Time" value={doctorForm.startTime} onChange={(e) => setDoctorForm({ ...doctorForm, startTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
+                  <input type="time" placeholder="End Time" value={doctorForm.endTime} onChange={(e) => setDoctorForm({ ...doctorForm, endTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
                   <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                     <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
                     <button onClick={handleSaveDoctor} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
@@ -551,16 +557,18 @@ function Dashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
-                    <th style={{ padding: '16px', textAlign: 'left' }}>ID</th>
                     <th style={{ padding: '16px', textAlign: 'left' }}>Doctor Name</th>
                     <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
+                    <th style={{ padding: '16px', textAlign: 'center' }}>Working Hours</th>
+                    <th style={{ padding: '16px', textAlign: 'center' }}>Slots/Day</th>
+                    <th style={{ padding: '16px', textAlign: 'center' }}>Capacity/Slot</th>
                     <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {doctors.length === 0 ? (
                     <tr>
-                      <td colSpan="4" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
+                      <td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
                         📭 No doctors added yet
                       </td>
                     </tr>
@@ -568,31 +576,51 @@ function Dashboard() {
                     doctors.map((doc, i) => (
                     <>
                       <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                        <td style={{ padding: '16px', textAlign: 'left' }}>{doc.id}</td>
-                        <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {doc.name}</td>
-                        <td style={{ padding: '16px', textAlign: 'left' }}>🏥 {doc.category}</td>
+                        <td style={{ padding: '16px', textAlign: 'left' }}>
+                          <div style={{ fontWeight: '600', fontSize: '15px' }}>👨⚕️ {doc.name}</div>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'left' }}>
+                          <span style={{ padding: '4px 12px', backgroundColor: '#dbeafe', color: '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>🏥 {doc.category}</span>
+                        </td>
                         <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <button onClick={() => { const cat = categories.find(c => c.name === doc.category); setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: cat?.id || '', slotsPerDay: '', startTime: '', endTime: '' }); setShowDoctorModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>✏️ Edit</button>
-                          <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>🗑️ Delete</button>
-                          <button onClick={() => { if (selectedDoctor?.id === doc.id) { setSelectedDoctor(null); setDoctorSlots([]) } else { setSelectedDoctor(doc); fetchDoctorSlots(doc.id) } }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                            {selectedDoctor?.id === doc.id ? '▲ Hide' : '📋 Bookings'}
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>🕐 {formatTime12Hour(doc.start_time?.substring(0, 5))} - {formatTime12Hour(doc.end_time?.substring(0, 5))}</div>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                          <span style={{ padding: '6px 12px', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>{doc.slots_per_day}</span>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                          <span style={{ padding: '6px 12px', backgroundColor: '#d1fae5', color: '#065f46', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>{doc.capacity_per_slot} patients</span>
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                          <button onClick={() => { const cat = categories.find(c => c.name === doc.category); setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: cat?.id || '', slotsPerDay: doc.slots_per_day?.toString() || '', capacityPerSlot: doc.capacity_per_slot?.toString() || '5', startTime: doc.start_time?.substring(0, 5) || '', endTime: doc.end_time?.substring(0, 5) || '' }); setShowDoctorModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px', fontSize: '13px' }}>✏️ Edit</button>
+                          <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px', fontSize: '13px' }}>🗑️ Delete</button>
+                          <button onClick={() => { if (selectedDoctor?.id === doc.id) { setSelectedDoctor(null); setDoctorSlots([]) } else { setSelectedDoctor(doc); fetchDoctorSlots(doc.id) } }} style={{ padding: '6px 12px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                            {selectedDoctor?.id === doc.id ? '▲ Hide Slots' : '📋 View Slots'}
                           </button>
                         </td>
                       </tr>
                       {selectedDoctor?.id === doc.id && (
                         <tr style={{ backgroundColor: '#f9fafb' }}>
-                          <td colSpan="4" style={{ padding: '16px' }}>
+                          <td colSpan="6" style={{ padding: '16px' }}>
                             {doctorSlots.length === 0 ? (
                               <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No bookings yet</div>
                             ) : (
                               doctorSlots.map(slot => (
                                 <div key={`${slot.date}_${slot.time_slot}`} style={{ marginBottom: '16px', padding: '16px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                  <div style={{ fontWeight: '600', marginBottom: '12px', fontSize: '14px' }}>📅 {slot.date} - 🕐 {slot.time_slot}</div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <div style={{ fontWeight: '600', fontSize: '14px' }}>📅 {slot.date} - 🕐 {slot.time_slot}</div>
+                                    <div style={{ padding: '4px 12px', backgroundColor: slot.patients.length >= (doc.capacity_per_slot || 5) ? '#fee2e2' : '#d1fae5', color: slot.patients.length >= (doc.capacity_per_slot || 5) ? '#991b1b' : '#065f46', borderRadius: '6px', fontSize: '13px', fontWeight: '700' }}>
+                                      {slot.patients.length}/{doc.capacity_per_slot || 5} booked
+                                    </div>
+                                  </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
                                     {slot.patients.map(p => (
                                       <div key={p.id} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                                         <div style={{ fontSize: '13px', marginBottom: '4px' }}><strong>👤 {p.patient_name}</strong></div>
                                         <div style={{ fontSize: '12px', color: '#64748b' }}>📞 {p.phone}</div>
+                                        {p.token_number && (
+                                          <div style={{ fontSize: '12px', marginTop: '4px', color: '#3b82f6', fontWeight: '600' }}>🎫 Token #{p.token_number}</div>
+                                        )}
                                         <div style={{ fontSize: '12px', marginTop: '6px' }}>
                                           <span style={{ padding: '4px 8px', backgroundColor: p.status === 'completed' ? '#d1fae5' : p.status === 'visited' ? '#e0e7ff' : p.status === 'accepted' ? '#dbeafe' : '#fef3c7', color: p.status === 'completed' ? '#065f46' : p.status === 'visited' ? '#3730a3' : p.status === 'accepted' ? '#1e40af' : '#92400e', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
                                             {p.status === 'completed' ? '✅ Completed' : p.status === 'visited' ? '🏥 Visited' : p.status === 'accepted' ? '✅ Accepted' : '⏳ Pending'}
