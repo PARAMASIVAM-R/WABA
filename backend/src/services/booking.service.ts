@@ -24,6 +24,11 @@ export async function processBookingMessage(message: {
   const phone = message.from
   const input = message.text.toLowerCase()
 
+  // Check for restart keywords at any point in conversation
+  if (input === 'hi' || input === 'hello' || input === 'book') {
+    clearSession(phone)
+  }
+
   const session = getSession(phone)
   let response = ''
 
@@ -157,8 +162,9 @@ export async function processBookingMessage(message: {
         ) as any
         
         if (slots.length === 0) {
-          response = '❌ No time slots available for this doctor. Please contact admin.'
+          response = '❌ No time slots available for this doctor on the selected date.\n\n💡 To book a new appointment, please type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
+          clearSession(phone)
           break
         }
         
@@ -205,9 +211,9 @@ export async function processBookingMessage(message: {
       console.log('Total available slots:', timeSlots.length)
       
       if (timeSlots.length === 0) {
-        response = '❌ All seats are filled, you can book next day. Please select another date.'
+        response = '❌ All seats are filled for this date.\n\n💡 To book another date, please type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        session.state = 'booking_date'
+        clearSession(phone)
         break
       }
       
