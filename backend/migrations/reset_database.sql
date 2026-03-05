@@ -27,6 +27,7 @@ CREATE TABLE time_slots (
   doctor_id INT NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
+  date DATE NOT NULL,
   capacity INT NOT NULL DEFAULT 5,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
