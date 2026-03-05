@@ -570,19 +570,19 @@ function Dashboard() {
                     <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {visit.doctor}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {visit.time_slot}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : '#fef3c7', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {visit.status === 'completed' ? '✅ Completed' : visit.status === 'visited' ? '🏥 Visited' : '⏳ Accepted'}
+                      <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : visit.status === 'accepted' ? '#fef3c7' : '#dbeafe', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : visit.status === 'accepted' ? '#92400e' : '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {visit.status === 'completed' ? '✅ Completed' : visit.status === 'visited' ? '🏥 Visited' : visit.status === 'accepted' ? '⏳ Accepted' : '✅ Confirmed'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        {visit.status === 'accepted' && (
+                        {(visit.status === 'confirmed' || visit.status === 'accepted') && (
                           <button onClick={() => handleMarkVisited(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🏥 Mark Visited</button>
                         )}
                         {visit.status === 'visited' && (
                           <button onClick={() => handleMarkCompleted(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Mark Completed</button>
                         )}
-                        {(visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed') && (
+                        {(visit.status === 'confirmed' || visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: visit.phone, patientName: visit.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>
@@ -643,8 +643,8 @@ function Dashboard() {
                       )}
                     </td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'confirmed' ? '✅ Confirmed' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -656,7 +656,7 @@ function Dashboard() {
                             <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
                           </>
                         )}
-                        {(apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'rejected') && (
+                        {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'rejected') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>
@@ -884,7 +884,7 @@ function Dashboard() {
                                   {(() => {
                                     const bookedAppointments = weekAppointments.filter(apt => {
                                       if (apt.date !== dateStr) return false
-                                      if (!['pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
+                                      if (!['confirmed', 'pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
                                       
                                       // Normalize times by removing :00, spaces, and [x/y]
                                       const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()

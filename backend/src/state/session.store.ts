@@ -5,6 +5,7 @@ export type BookingState =
   | 'booking_date'
   | 'booking_time'
   | 'booking_name'
+  | 'booking_confirm'
 
 interface Session {
   state: BookingState

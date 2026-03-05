@@ -1,5 +1,5 @@
 import { getSession, saveSession, clearSession } from '../state/session.store'
-import { sendText, sendInteractiveList } from './whatsapp.service'
+import { sendText, sendInteractiveList, sendInteractiveButtons } from './whatsapp.service'
 import { saveAppointment, getCategories, getDoctorsByCategory, getTimeSlotsByDoctor } from './db.service'
 
 function getNext7Days() {
@@ -16,6 +16,9 @@ function getNext7Days() {
   }
   return days
 }
+
+
+
 
 export async function processBookingMessage(message: {
   from: string
@@ -187,7 +190,7 @@ export async function processBookingMessage(message: {
           // Count existing bookings for this slot
           const [bookings] = await pool.query(
             `SELECT COUNT(*) as count FROM appointments 
-             WHERE doctor = ? AND date = ? AND time_slot = ? AND status IN ('pending', 'accepted', 'visited')`,
+             WHERE doctor = ? AND date = ? AND time_slot = ? AND status IN ('confirmed', 'accepted', 'visited', 'completed')`,
             [session.data.doctor, formattedDate, slotTime]
           ) as any
           
@@ -242,21 +245,44 @@ export async function processBookingMessage(message: {
     case 'booking_name':
       session.data.name = message.text
       
-      await saveAppointment(
-        phone, 
-        session.data.name, 
-        session.data.category!, 
-        session.data.doctor!, 
-        session.data.date!, 
-        session.data.time!,
-        0 // No timeSlotId needed anymore
-      )
-      
       const displayDate = session.data.dateDisplay || session.data.date || 'N/A'
-      response = `✅ Appointment Request Submitted!\n\n📋 Summary:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\n⏳ Status: Pending Approval\n\nYour appointment request has been sent to the hospital. You will receive a confirmation once it's reviewed by the receptionist.\n\nThank you! 🙏`
-      await sendText(phone, response)
-      clearSession(phone)
-      return response
+      await sendInteractiveButtons(
+        phone,
+        `📋 Appointment Summary:\n\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\nPlease confirm your appointment:`,
+        [
+          { id: 'confirm', title: 'Confirm' },
+          { id: 'cancel', title: 'Cancel' }
+        ]
+      )
+      session.state = 'booking_confirm'
+      response = 'Confirmation buttons sent'
+      break
+
+    case 'booking_confirm':
+      if (input === 'confirm') {
+        await saveAppointment(
+          phone, 
+          session.data.name!, 
+          session.data.category!, 
+          session.data.doctor!, 
+          session.data.date!, 
+          session.data.time!,
+          0
+        )
+        
+        const displayDate2 = session.data.dateDisplay || session.data.date || 'N/A'
+        response = `✅ Appointment Confirmed!\n\n📋 Details:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate2}\n🕐 Time: ${session.data.time}\n\n✅ Status: Confirmed\n\nYour appointment is confirmed! Please arrive 10 minutes early.\n\nThank you! 🙏`
+        await sendText(phone, response)
+        clearSession(phone)
+      } else if (input === 'cancel') {
+        response = '❌ Appointment cancelled.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
+        await sendText(phone, response)
+        clearSession(phone)
+      } else {
+        response = '❌ Please type "confirm" to book or "cancel" to cancel.'
+        await sendText(phone, response)
+      }
+      break
   }
 
   saveSession(phone, session)

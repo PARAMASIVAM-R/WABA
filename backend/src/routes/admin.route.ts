@@ -75,7 +75,7 @@ router.get('/today', async (req, res) => {
     
     const [rows] = await pool.query(`
       SELECT * FROM appointments 
-      WHERE DATE(date) = ? AND status IN ('accepted', 'visited', 'completed')
+      WHERE DATE(date) = ? AND status IN ('confirmed', 'accepted', 'visited', 'completed')
       ORDER BY doctor, time_slot, token_number
     `, [todayStr]) as any
     
