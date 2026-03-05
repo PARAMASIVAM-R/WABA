@@ -33,6 +33,7 @@ function Dashboard() {
   const [dateFilter, setDateFilter] = useState('')
   const [calendarDoctor, setCalendarDoctor] = useState(null)
   const [weekSlots, setWeekSlots] = useState([])
+  const [weekAppointments, setWeekAppointments] = useState([])
   const [showCalendarSlotModal, setShowCalendarSlotModal] = useState(false)
   const [calendarSlotForm, setCalendarSlotForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false })
   const [editingCalendarSlot, setEditingCalendarSlot] = useState(null)
@@ -414,7 +415,10 @@ function Dashboard() {
       const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots`)
       const data = await res.json()
       console.log('Week slots data:', data)
+      console.log('Time slots:', data.timeSlots)
+      console.log('Appointments:', data.appointments)
       setWeekSlots(data.timeSlots || [])
+      setWeekAppointments(data.appointments || [])
     } catch (error) {
       console.error(error)
     }
@@ -772,7 +776,7 @@ function Dashboard() {
             ) : (
               <div>
                 <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button onClick={() => { setCalendarDoctor(null); setWeekSlots([]); setDateRange({ fromDate: '', toDate: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+                  <button onClick={() => { setCalendarDoctor(null); setWeekSlots([]); setWeekAppointments([]); setDateRange({ fromDate: '', toDate: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
                     ← Back to Doctors
                   </button>
                   <h3 style={{ margin: 0, fontSize: '20px', color: '#1e40af' }}>👨⚕️ {calendarDoctor.name} - Schedule</h3>
@@ -868,11 +872,57 @@ function Dashboard() {
                               </td>
                               <td style={{ padding: '16px', textAlign: 'left' }}>
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                  {Array.from({ length: slot.capacity }).map((_, seatIdx) => (
-                                    <div key={seatIdx} style={{ width: '40px', height: '40px', border: '2px solid #cbd5e1', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', fontSize: '12px', color: '#64748b' }}>
-                                      {seatIdx + 1}
-                                    </div>
-                                  ))}
+                                  {(() => {
+                                    const bookedAppointments = weekAppointments.filter(apt => {
+                                      if (apt.date !== dateStr) return false
+                                      if (!['pending', 'accepted', 'visited'].includes(apt.status)) return false
+                                      
+                                      // Normalize times by removing :00, spaces, and [x/y]
+                                      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotStart = formatTime12Hour(slot.start_time).replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotEnd = formatTime12Hour(slot.end_time).replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotTimeNorm = `${slotStart}-${slotEnd}`
+                                      
+                                      return aptTime === slotTimeNorm
+                                    })
+                                    
+                                    console.log(`Slot ${dateStr} ${formatTime12Hour(slot.start_time)}-${formatTime12Hour(slot.end_time)}: ${bookedAppointments.length} bookings`)
+                                    
+                                    return Array.from({ length: slot.capacity }).map((_, seatIdx) => {
+                                      const aptForSeat = bookedAppointments[seatIdx]
+                                      const isBooked = !!aptForSeat
+                                      
+                                      return (
+                                        <div key={seatIdx} style={{ 
+                                          width: '80px', 
+                                          height: '60px', 
+                                          border: '2px solid ' + (isBooked ? '#10b981' : '#cbd5e1'), 
+                                          borderRadius: '6px', 
+                                          display: 'flex', 
+                                          flexDirection: 'column',
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          backgroundColor: isBooked ? '#d1fae5' : '#f1f5f9', 
+                                          fontSize: '11px', 
+                                          color: isBooked ? '#065f46' : '#64748b',
+                                          padding: '4px',
+                                          fontWeight: isBooked ? '600' : '400'
+                                        }}>
+                                          {isBooked ? (
+                                            <>
+                                              <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
+                                              <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
+                                              <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'visited' ? '#3b82f6' : aptForSeat.status === 'accepted' ? '#10b981' : '#f59e0b', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+                                                {aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : 'Pending'}
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <div style={{ fontSize: '12px' }}>#{seatIdx + 1}</div>
+                                          )}
+                                        </div>
+                                      )
+                                    })
+                                  })()}
                                 </div>
                               </td>
                             </tr>

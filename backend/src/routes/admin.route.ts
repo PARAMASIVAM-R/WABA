@@ -44,7 +44,7 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   ) as any
   
   const [appointments] = await pool.query(
-    `SELECT id, patient_name, phone, date, time_slot, status, token_number, created_at
+    `SELECT id, patient_name, phone, DATE_FORMAT(date, '%Y-%m-%d') as date, time_slot, status, token_number, created_at
      FROM appointments 
      WHERE doctor = ?
      ORDER BY date DESC, time_slot, created_at`,

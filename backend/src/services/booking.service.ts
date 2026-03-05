@@ -231,7 +231,9 @@ export async function processBookingMessage(message: {
       break
 
     case 'booking_time':
-      session.data.time = message.text
+      // Remove the booking count from time slot before saving
+      const cleanTimeSlot = message.text.replace(/\s*\[\d+\/\d+\]\s*$/, '')
+      session.data.time = cleanTimeSlot
       response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
       await sendText(phone, response)
       session.state = 'booking_name'
