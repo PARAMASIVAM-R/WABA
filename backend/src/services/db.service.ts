@@ -133,10 +133,13 @@ export async function getFollowups() {
 }
 
 export async function markFollowupAsSent(id: number) {
-  await pool.query(
+  console.log(`Marking followup ${id} as sent`)
+  const [result] = await pool.query(
     'UPDATE followups SET status = "sent", sent_at = NOW() WHERE id = ?',
     [id]
-  )
+  ) as any
+  console.log(`Updated ${result.affectedRows} rows`)
+  return result
 }
 
 // Doctor management functions

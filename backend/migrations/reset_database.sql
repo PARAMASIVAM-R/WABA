@@ -58,6 +58,7 @@ CREATE TABLE followups (
   template_name VARCHAR(255),
   custom_message TEXT,
   status VARCHAR(50) DEFAULT 'pending',
+  sent_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

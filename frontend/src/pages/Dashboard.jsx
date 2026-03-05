@@ -361,10 +361,17 @@ function Dashboard() {
   const handleSendFollowup = async (id) => {
     if (!confirm('Send now?')) return
     try {
-      await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
-      fetchFollowups()
+      const res = await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        alert('Message sent successfully!')
+        await fetchFollowups()
+      } else {
+        alert('Error: ' + (data.error || 'Failed to send'))
+      }
     } catch (error) {
       alert('Error sending')
+      console.error(error)
     }
   }
 
@@ -518,7 +525,7 @@ function Dashboard() {
             {activeTab === 'calendar' && '📆 Doctors Calendar'}
             {activeTab === 'followups' && '📨 Follow-ups'}
           </h2>
-          <button onClick={() => activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : fetchFollowups()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+          <button onClick={() => activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : activeTab === 'calendar' && calendarDoctor ? fetchWeekSlots(calendarDoctor.id) : activeTab === 'followups' ? fetchFollowups() : null} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
             🔄 Refresh
           </button>
         </div>
@@ -723,9 +730,9 @@ function Dashboard() {
                         </span>
                       </td>
                       <td style={{ padding: '16px', textAlign: 'center' }}>
-                        {f.status === 'pending' && (
-                          <button onClick={() => handleSendFollowup(f.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📤 Send</button>
-                        )}
+                        <button onClick={() => handleSendFollowup(f.id)} style={{ padding: '8px 16px', backgroundColor: f.status === 'sent' ? '#3b82f6' : '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                          {f.status === 'sent' ? '🔄 Resend' : '📤 Send'}
+                        </button>
                       </td>
                     </tr>
                     ))
@@ -825,7 +832,7 @@ function Dashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
-                        <th style={{ padding: '16px', textAlign: 'left', width: '200px' }}>Date</th>
+                        <th style={{ padding: '16px', textAlign: 'left', width: '150px' }}>Date</th>
                         <th style={{ padding: '16px', textAlign: 'left', width: '170px' }}>Slot Time</th>
                         <th style={{ padding: '16px', textAlign: 'center', width: '100px' }}>Capacity</th>
                         <th style={{ padding: '16px', textAlign: 'center', width: '150px' }}>Actions</th>
@@ -877,7 +884,7 @@ function Dashboard() {
                                   {(() => {
                                     const bookedAppointments = weekAppointments.filter(apt => {
                                       if (apt.date !== dateStr) return false
-                                      if (!['pending', 'accepted', 'visited'].includes(apt.status)) return false
+                                      if (!['pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
                                       
                                       // Normalize times by removing :00, spaces, and [x/y]
                                       const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
@@ -898,15 +905,15 @@ function Dashboard() {
                                         <div key={seatIdx} style={{ 
                                           width: '80px', 
                                           height: '60px', 
-                                          border: '2px solid ' + (isBooked ? '#10b981' : '#cbd5e1'), 
+                                          border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : '#a78bfa') : '#cbd5e1'), 
                                           borderRadius: '6px', 
                                           display: 'flex', 
                                           flexDirection: 'column',
                                           alignItems: 'center', 
                                           justifyContent: 'center', 
-                                          backgroundColor: isBooked ? '#d1fae5' : '#f1f5f9', 
+                                          backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : '#ede9fe') : '#f1f5f9', 
                                           fontSize: '11px', 
-                                          color: isBooked ? '#065f46' : '#64748b',
+                                          color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#6b21a8') : '#64748b',
                                           padding: '4px',
                                           fontWeight: isBooked ? '600' : '400'
                                         }}>
@@ -914,8 +921,8 @@ function Dashboard() {
                                             <>
                                               <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
                                               <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
-                                              <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'visited' ? '#3b82f6' : aptForSeat.status === 'accepted' ? '#10b981' : '#f59e0b', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
-                                                {aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : 'Pending'}
+                                              <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#8b5cf6', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+                                                {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : 'Pending'}
                                               </div>
                                             </>
                                           ) : (
