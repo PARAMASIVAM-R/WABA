@@ -27,13 +27,23 @@ export async function processBookingMessage(message: {
   const phone = message.from
   const input = message.text.toLowerCase()
 
+  const session = getSession(phone)
+  let response = ''
+
   // Check for restart keywords at any point in conversation
   if (input === 'hi' || input === 'hello' || input === 'book') {
     clearSession(phone)
+    session.state = 'idle'
   }
 
-  const session = getSession(phone)
-  let response = ''
+  // Check for cancel keyword
+  if (input === 'cancel') {
+    clearSession(phone)
+    const newSession = getSession(phone)
+    newSession.state = 'cancel_appointment'
+    saveSession(phone, newSession)
+    return await processBookingMessage(message)
+  }
 
   switch (session.state) {
     case 'idle':
@@ -250,8 +260,8 @@ export async function processBookingMessage(message: {
         phone,
         `📋 Appointment Summary:\n\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\nPlease confirm your appointment:`,
         [
-          { id: 'confirm', title: 'Confirm' },
-          { id: 'cancel', title: 'Cancel' }
+          { id: 'confirm', title: '✅Confirm' },
+          { id: 'cancel', title: '❌Cancel' }
         ]
       )
       session.state = 'booking_confirm'
@@ -281,6 +291,120 @@ export async function processBookingMessage(message: {
       } else {
         response = '❌ Please type "confirm" to book or "cancel" to cancel.'
         await sendText(phone, response)
+      }
+      break
+
+    case 'cancel_appointment':
+      const mysql2 = require('mysql2/promise')
+      const { env: env2 } = require('../config/env')
+      const pool2 = mysql2.createPool({
+        host: env2.dbHost,
+        user: env2.dbUser,
+        password: env2.dbPassword,
+        database: env2.dbName
+      })
+      
+      try {
+        const [appointments] = await pool2.query(
+          `SELECT * FROM appointments WHERE phone = ? AND status IN ('confirmed', 'accepted') AND date >= CURDATE() ORDER BY date, time_slot`,
+          [phone]
+        ) as any
+        
+        if (appointments.length === 0) {
+          response = '❌ No active appointments found.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
+          await sendText(phone, response)
+          clearSession(phone)
+          break
+        }
+        
+        await sendInteractiveList(
+          phone,
+          '📋 Select the appointment you want to cancel:',
+          'Select Appointment',
+          [{
+            title: 'Your Appointments',
+            rows: appointments.map((apt: any) => ({
+              id: apt.id.toString(),
+              title: `${apt.doctor} - ${apt.date} ${apt.time_slot}`.substring(0, 24)
+            }))
+          }]
+        )
+        session.state = 'cancel_confirm'
+        response = 'Appointment list sent'
+      } finally {
+        await pool2.end()
+      }
+      break
+
+    case 'cancel_confirm':
+      const mysql3 = require('mysql2/promise')
+      const { env: env3 } = require('../config/env')
+      const pool3 = mysql3.createPool({
+        host: env3.dbHost,
+        user: env3.dbUser,
+        password: env3.dbPassword,
+        database: env3.dbName
+      })
+      
+      try {
+        const [appointments2] = await pool3.query(
+          `SELECT * FROM appointments WHERE phone = ? AND status IN ('confirmed', 'accepted') AND date >= CURDATE()`,
+          [phone]
+        ) as any
+        
+        const selectedApt = appointments2.find((apt: any) => 
+          message.text.includes(apt.doctor) || apt.id.toString() === message.text
+        )
+        
+        if (!selectedApt) {
+          response = '❌ Please select an appointment from the list.'
+          await sendText(phone, response)
+          break
+        }
+        
+        await sendInteractiveButtons(
+          phone,
+          `📋 Appointment Details:\n\n👤 Name: ${selectedApt.patient_name}\n👨⚕️ Doctor: ${selectedApt.doctor}\n📅 Date: ${selectedApt.date}\n🕐 Time: ${selectedApt.time_slot}\n\nAre you sure you want to cancel?`,
+          [
+            { id: `cancel_yes_${selectedApt.id}`, title: '✅ Yes, Cancel' },
+            { id: 'cancel_no', title: '❌ No, Keep It' }
+          ]
+        )
+        session.data.cancelId = selectedApt.id
+        session.state = 'cancel_final'
+        response = 'Confirmation sent'
+      } finally {
+        await pool3.end()
+      }
+      break
+
+    case 'cancel_final':
+      if (input.includes('cancel_yes') || input.includes('yes')) {
+        const mysql4 = require('mysql2/promise')
+        const { env: env4 } = require('../config/env')
+        const pool4 = mysql4.createPool({
+          host: env4.dbHost,
+          user: env4.dbUser,
+          password: env4.dbPassword,
+          database: env4.dbName
+        })
+        
+        try {
+          await pool4.query(
+            `UPDATE appointments SET status = 'cancelled' WHERE id = ?`,
+            [session.data.cancelId]
+          )
+          
+          response = '✅ Appointment cancelled successfully!\n\nYour slot has been freed for other patients.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
+          await sendText(phone, response)
+          clearSession(phone)
+        } finally {
+          await pool4.end()
+        }
+      } else {
+        response = '✅ Appointment kept! Your booking is still active.\n\n💡 To book another appointment, type:\n• "hi" or "hello" or "book"'
+        await sendText(phone, response)
+        clearSession(phone)
       }
       break
   }

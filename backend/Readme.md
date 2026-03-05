@@ -400,3 +400,22 @@ ISC
 ---
 
 **Built with ❤️ for seamless appointment booking via WhatsApp**
+
+
+
+# Features Added:
+Cancel Command: Patients can type "cancel" anytime to start cancellation
+
+## Cancellation Flow:
+
+Shows list of active appointments (confirmed/accepted, future dates only)
+Patient selects appointment to cancel
+Confirmation step with Yes/No buttons
+Updates status to 'cancelled' in database
+Smart Filtering: Only shows cancellable appointments (not past dates, not already visited/completed)
+User-Friendly: Uses interactive lists and buttons for easy selection
+
+### How It Works:
+Patient types "cancel" → Sees their appointments → Selects one → Confirms cancellation → Slot freed
+
+The cancelled appointments won't count toward slot capacity, freeing up space for other patients to book!

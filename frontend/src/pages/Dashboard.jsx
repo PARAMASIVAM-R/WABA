@@ -652,8 +652,8 @@ function Dashboard() {
                       )}
                     </td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'confirmed' ? '✅ Confirmed' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'confirmed' ? '✅ Confirmed' : apt.status === 'cancelled' ? '❌ Cancelled' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -665,7 +665,7 @@ function Dashboard() {
                             <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
                           </>
                         )}
-                        {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'rejected') && (
+                        {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'cancelled' || apt.status === 'rejected') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>

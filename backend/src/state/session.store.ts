@@ -6,6 +6,9 @@ export type BookingState =
   | 'booking_time'
   | 'booking_name'
   | 'booking_confirm'
+  | 'cancel_appointment'
+  | 'cancel_confirm'
+  | 'cancel_final'
 
 interface Session {
   state: BookingState
@@ -17,6 +20,7 @@ interface Session {
     time: string | undefined
     timeSlotId: number | undefined
     name: string | undefined
+    cancelId: number | undefined
   }
 }
 
@@ -32,7 +36,8 @@ export function getSession(phone: string): Session {
       dateDisplay: undefined,
       time: undefined,
       timeSlotId: undefined,
-      name: undefined
+      name: undefined,
+      cancelId: undefined
     }
   }
 }
