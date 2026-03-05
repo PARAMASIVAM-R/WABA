@@ -826,7 +826,7 @@ function Dashboard() {
                     <thead>
                       <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
                         <th style={{ padding: '16px', textAlign: 'left', width: '200px' }}>Date</th>
-                        <th style={{ padding: '16px', textAlign: 'left', width: '150px' }}>Slot Time</th>
+                        <th style={{ padding: '16px', textAlign: 'left', width: '170px' }}>Slot Time</th>
                         <th style={{ padding: '16px', textAlign: 'center', width: '100px' }}>Capacity</th>
                         <th style={{ padding: '16px', textAlign: 'center', width: '150px' }}>Actions</th>
                         <th style={{ padding: '16px', textAlign: 'left' }}>Available Seats</th>
@@ -844,11 +844,13 @@ function Dashboard() {
                             <td style={{ padding: '16px', textAlign: 'left', fontWeight: '600' }}>
                               {dateDisplay}<br/>
                               <span style={{ fontSize: '13px', color: '#64748b' }}>({dayName})</span>
-                            </td>
-                            <td colSpan="4" style={{ padding: '16px', textAlign: 'center' }}>
-                              <button onClick={() => { setCalendarSlotForm({ ...calendarSlotForm, date: dateStr }); setShowCalendarSlotModal(true) }} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                              <br/>
+                              <button onClick={() => { setCalendarSlotForm({ ...calendarSlotForm, date: dateStr }); setShowCalendarSlotModal(true) }} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>
                                 + Add Slot
                               </button>
+                            </td>
+                            <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                              No slot added
                             </td>
                           </tr>
                         ) : (
