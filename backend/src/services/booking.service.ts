@@ -177,7 +177,7 @@ export async function processBookingMessage(message: {
             const hour = parseInt(h || '0')
             const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
             const ampm = hour >= 12 ? 'PM' : 'AM'
-            return `${hour12}:${m || '00'} ${ampm}`
+            return `${hour12}${ampm}`
           }
           
           if (!slot.start_time || !slot.end_time) continue
@@ -200,7 +200,7 @@ export async function processBookingMessage(message: {
           if (availableSpots > 0) {
             timeSlots.push({
               id: slot.id.toString(),
-              title: slotTime
+              title: `${slotTime} [${bookedCount}/${slot.capacity}]`
             })
           }
         }
