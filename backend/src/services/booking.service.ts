@@ -148,10 +148,12 @@ export async function processBookingMessage(message: {
       const timeSlots = []
       
       try {
-        // Fetch configured time slots for this doctor
+        // Fetch configured time slots for this doctor and date
         const [slots] = await pool.query(
-          'SELECT * FROM time_slots WHERE doctor_id = ? ORDER BY start_time',
-          [doctorObj.id]
+          `SELECT * FROM time_slots 
+           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) 
+           ORDER BY start_time`,
+          [doctorObj.id, formattedDate]
         ) as any
         
         if (slots.length === 0) {
@@ -203,7 +205,7 @@ export async function processBookingMessage(message: {
       console.log('Total available slots:', timeSlots.length)
       
       if (timeSlots.length === 0) {
-        response = '❌ All slots are fully booked for this date. Please select another date or try a different doctor.'
+        response = '❌ All seats are filled, you can book next day. Please select another date.'
         await sendText(phone, response)
         session.state = 'booking_date'
         break
