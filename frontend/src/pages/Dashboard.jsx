@@ -525,10 +525,19 @@ function Dashboard() {
             {activeTab === 'calendar' && '📆 Doctors Calendar'}
             {activeTab === 'followups' && '📨 Follow-ups'}
           </h2>
+
+           {activeTab === 'calendar' &&
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowDoctorModal(true)} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+                    + Add Doctor
+                  </button>
+                </div>
+          }
           <button onClick={() => activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : activeTab === 'calendar' && calendarDoctor ? fetchWeekSlots(calendarDoctor.id) : activeTab === 'followups' ? fetchFollowups() : null} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
             🔄 Refresh
           </button>
         </div>
+        
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>Loading...</div>
@@ -744,7 +753,35 @@ function Dashboard() {
         ) : activeTab === 'calendar' ? (
           <div>
             {!calendarDoctor ? (
-              <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <>
+                {showDoctorModal && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
+                      <h3 style={{ margin: '0 0 24px 0' }}>{editingDoctor ? 'Edit' : 'Add'} Doctor</h3>
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>👨⚕️ Doctor Name</label>
+                        <input type="text" value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
+                      </div>
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>🏥 Category</label>
+                        <select value={doctorForm.categoryId} onChange={(e) => setDoctorForm({ ...doctorForm, categoryId: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }}>
+                          <option value="">-- Select Category --</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                        <button onClick={handleSaveDoctor} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowDoctorModal(true)} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+                    + Add Doctor
+                  </button>
+                </div> */}
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
@@ -770,9 +807,17 @@ function Dashboard() {
                             <span style={{ padding: '4px 12px', backgroundColor: '#dbeafe', color: '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>🏥 {doc.category}</span>
                           </td>
                           <td style={{ padding: '16px', textAlign: 'center' }}>
-                            <button onClick={() => { setCalendarDoctor(doc); initializeDateRange(); fetchWeekSlots(doc.id) }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
-                              📆 View Calendar
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button onClick={() => { setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: categories.find(c => c.name === doc.category)?.id || '' }); setShowDoctorModal(true) }} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                ✏️ Edit
+                              </button>
+                              <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                🗑️ Delete
+                              </button>
+                              <button onClick={() => { setCalendarDoctor(doc); initializeDateRange(); fetchWeekSlots(doc.id) }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                📆 View Calendar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -780,6 +825,7 @@ function Dashboard() {
                   </tbody>
                 </table>
               </div>
+              </>
             ) : (
               <div>
                 <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
