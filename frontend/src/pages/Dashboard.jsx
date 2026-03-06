@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import TimePickerAMPM from '../components/TimePickerAMPM'
 
 const API_URL = 'http://localhost:3000'
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('appointments')
+  const [calendarView, setCalendarView] = useState('list') // 'list' or 'calendar'
   const [appointments, setAppointments] = useState([])
   const [todayVisits, setTodayVisits] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -12,10 +14,15 @@ function Dashboard() {
   const [templates, setTemplates] = useState([])
   const [selectedDoctor, setSelectedDoctor] = useState(null)
   const [doctorSlots, setDoctorSlots] = useState([])
+  const [timeSlots, setTimeSlots] = useState([])
+  const [slotBookings, setSlotBookings] = useState([])
+  const [showSlotModal, setShowSlotModal] = useState(false)
+  const [editingSlot, setEditingSlot] = useState(null)
+  const [slotForm, setSlotForm] = useState({ startTime: '09:00', endTime: '17:00', capacity: '5' })
   const [loading, setLoading] = useState(false)
   const [showDoctorModal, setShowDoctorModal] = useState(false)
   const [editingDoctor, setEditingDoctor] = useState(null)
-  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '', slotsPerDay: '', capacityPerSlot: '5', startTime: '', endTime: '' })
+  const [doctorForm, setDoctorForm] = useState({ name: '', categoryId: '' })
   const [followupForm, setFollowupForm] = useState({
     phone: '',
     patientName: '',
@@ -24,18 +31,25 @@ function Dashboard() {
     customMessage: ''
   })
   const [dateFilter, setDateFilter] = useState('')
+  const [calendarDoctor, setCalendarDoctor] = useState(null)
+  const [weekSlots, setWeekSlots] = useState([])
+  const [weekAppointments, setWeekAppointments] = useState([])
+  const [showCalendarSlotModal, setShowCalendarSlotModal] = useState(false)
+  const [calendarSlotForm, setCalendarSlotForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false })
+  const [editingCalendarSlot, setEditingCalendarSlot] = useState(null)
+  const [dateRange, setDateRange] = useState({ fromDate: '', toDate: '' })
 
   useEffect(() => {
-    if (activeTab === 'doctors') {
-      fetchDoctors()
-      fetchCategories()
-    } else if (activeTab === 'followups') {
+    if (activeTab === 'followups') {
       fetchFollowups()
       fetchTemplates()
     } else if (activeTab === 'today') {
       fetchTodayVisits()
     } else if (activeTab === 'appointments') {
       fetchAppointments()
+    } else if (activeTab === 'calendar') {
+      fetchDoctors()
+      fetchCategories()
     }
   }, [activeTab])
 
@@ -46,6 +60,14 @@ function Dashboard() {
     const ampm = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
     return `${hour12}:${minutes} ${ampm}`
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return dateStr
+    const options = { year: 'numeric', month: 'short', day: 'numeric' }
+    return date.toLocaleDateString('en-US', options)
   }
 
   const fetchAppointments = async () => {
@@ -86,13 +108,40 @@ function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots`)
       const data = await res.json()
-      const grouped = (data.appointments || []).reduce((acc, apt) => {
+      
+      console.log('API Response:', data)
+      
+      // Set time slots
+      setTimeSlots(data.timeSlots || [])
+      
+      // Group ALL appointments by date and time_slot
+      const grouped = {}
+      const appointments = data.appointments || []
+      
+      appointments.forEach(apt => {
         const key = `${apt.date}_${apt.time_slot}`
-        if (!acc[key]) acc[key] = { date: apt.date, time_slot: apt.time_slot, patients: [] }
-        acc[key].patients.push(apt)
-        return acc
-      }, {})
-      setDoctorSlots(Object.values(grouped))
+        if (!grouped[key]) {
+          // Find matching time slot to get capacity
+          const matchingSlot = (data.timeSlots || []).find(slot => {
+            const slotFormat1 = `${slot.start_time}-${slot.end_time}`
+            const slotFormat2 = `${slot.start_time} - ${slot.end_time}`
+            return apt.time_slot === slotFormat1 || apt.time_slot === slotFormat2
+          })
+          
+          grouped[key] = {
+            date: apt.date,
+            time_slot: apt.time_slot,
+            capacity: matchingSlot ? matchingSlot.capacity : 5,
+            booked: 0,
+            patients: []
+          }
+        }
+        grouped[key].patients.push(apt)
+        grouped[key].booked++
+      })
+      
+      console.log('Grouped bookings:', grouped)
+      setSlotBookings(Object.values(grouped))
     } catch (error) {
       console.error(error)
     }
@@ -216,10 +265,6 @@ function Dashboard() {
       alert('Please fill name and category')
       return
     }
-    if (!doctorForm.slotsPerDay || !doctorForm.capacityPerSlot || !doctorForm.startTime || !doctorForm.endTime) {
-      alert('Please fill all slot configuration fields')
-      return
-    }
     try {
       if (editingDoctor) {
         await fetch(`${API_URL}/admin/appointments/doctors/${editingDoctor.id}`, {
@@ -236,7 +281,7 @@ function Dashboard() {
       }
       setShowDoctorModal(false)
       setEditingDoctor(null)
-      setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', capacityPerSlot: '5', startTime: '', endTime: '' })
+      setDoctorForm({ name: '', categoryId: '' })
       fetchDoctors()
     } catch (error) {
       alert('Error saving doctor')
@@ -250,6 +295,48 @@ function Dashboard() {
       fetchDoctors()
     } catch (error) {
       alert('Error deleting doctor')
+    }
+  }
+
+  const handleSaveSlot = async () => {
+    if (!slotForm.startTime || !slotForm.endTime || !slotForm.capacity) {
+      alert('Please fill all fields')
+      return
+    }
+    try {
+      if (editingSlot) {
+        await fetch(`${API_URL}/admin/appointments/slots/${editingSlot.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slotForm)
+        })
+      } else {
+        await fetch(`${API_URL}/admin/appointments/doctors/${selectedDoctor.id}/slots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slotForm)
+        })
+      }
+      setShowSlotModal(false)
+      setEditingSlot(null)
+      setSlotForm({ startTime: '09:00', endTime: '17:00', capacity: '5' })
+      fetchDoctorSlots(selectedDoctor.id)
+    } catch (error) {
+      alert('Error saving slot')
+    }
+  }
+
+  const handleDeleteSlot = async (id) => {
+    if (!confirm('Delete this time slot?')) return
+    try {
+      await fetch(`${API_URL}/admin/appointments/slots/${id}`, { method: 'DELETE' })
+      if (calendarDoctor) {
+        fetchWeekSlots(calendarDoctor.id)
+      } else if (selectedDoctor) {
+        fetchDoctorSlots(selectedDoctor.id)
+      }
+    } catch (error) {
+      alert('Error deleting slot')
     }
   }
 
@@ -274,10 +361,124 @@ function Dashboard() {
   const handleSendFollowup = async (id) => {
     if (!confirm('Send now?')) return
     try {
-      await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
-      fetchFollowups()
+      const res = await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        alert('Message sent successfully!')
+        await fetchFollowups()
+      } else {
+        alert('Error: ' + (data.error || 'Failed to send'))
+      }
     } catch (error) {
       alert('Error sending')
+      console.error(error)
+    }
+  }
+
+  const getWeekDates = () => {
+    if (dateRange.fromDate && dateRange.toDate) {
+      const dates = []
+      const start = new Date(dateRange.fromDate)
+      const end = new Date(dateRange.toDate)
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(new Date(d))
+      }
+      return dates
+    }
+    const today = new Date()
+    const week = []
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today)
+      date.setDate(today.getDate() + i)
+      week.push(date)
+    }
+    return week
+  }
+
+  const initializeDateRange = () => {
+    const today = new Date()
+    const endDate = new Date(today)
+    endDate.setDate(today.getDate() + 6)
+    setDateRange({
+      fromDate: today.toISOString().split('T')[0],
+      toDate: endDate.toISOString().split('T')[0]
+    })
+  }
+
+  const shiftWeek = (direction) => {
+    const days = direction === 'prev' ? -7 : 7
+    const newFrom = new Date(dateRange.fromDate)
+    const newTo = new Date(dateRange.toDate)
+    newFrom.setDate(newFrom.getDate() + days)
+    newTo.setDate(newTo.getDate() + days)
+    setDateRange({
+      fromDate: newFrom.toISOString().split('T')[0],
+      toDate: newTo.toISOString().split('T')[0]
+    })
+  }
+
+  const fetchWeekSlots = async (doctorId) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/appointments/doctors/${doctorId}/slots`)
+      const data = await res.json()
+      console.log('Week slots data:', data)
+      console.log('Time slots:', data.timeSlots)
+      console.log('Appointments:', data.appointments)
+      setWeekSlots(data.timeSlots || [])
+      setWeekAppointments(data.appointments || [])
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handleSaveCalendarSlot = async () => {
+    if (!calendarSlotForm.startTime || !calendarSlotForm.endTime || !calendarSlotForm.capacity) {
+      alert('Please fill all fields')
+      return
+    }
+    try {
+      if (editingCalendarSlot) {
+        await fetch(`${API_URL}/admin/appointments/slots/${editingCalendarSlot.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            startTime: calendarSlotForm.startTime,
+            endTime: calendarSlotForm.endTime,
+            capacity: calendarSlotForm.capacity
+          })
+        })
+      } else if (calendarSlotForm.applyToAll) {
+        const week = getWeekDates()
+        for (const date of week) {
+          await fetch(`${API_URL}/admin/appointments/doctors/${calendarDoctor.id}/slots`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              startTime: calendarSlotForm.startTime,
+              endTime: calendarSlotForm.endTime,
+              capacity: calendarSlotForm.capacity,
+              date: date.toISOString().split('T')[0]
+            })
+          })
+        }
+      } else {
+        await fetch(`${API_URL}/admin/appointments/doctors/${calendarDoctor.id}/slots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            startTime: calendarSlotForm.startTime,
+            endTime: calendarSlotForm.endTime,
+            capacity: calendarSlotForm.capacity,
+            date: calendarSlotForm.date
+          })
+        })
+      }
+      setShowCalendarSlotModal(false)
+      setEditingCalendarSlot(null)
+      setCalendarSlotForm({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false })
+      fetchWeekSlots(calendarDoctor.id)
+    } catch (error) {
+      alert('Error saving slot')
     }
   }
 
@@ -291,7 +492,7 @@ function Dashboard() {
           {[
             { id: 'appointments', icon: '📋', label: 'Appointments' },
             { id: 'today', icon: '📅', label: "Today's Visits" },
-            { id: 'doctors', icon: '👨⚕️', label: 'Doctors' },
+            { id: 'calendar', icon: '📆', label: 'Doctors Calendar' },
             { id: 'followups', icon: '📨', label: 'Follow-ups' }
           ].map(item => (
             <button
@@ -321,13 +522,22 @@ function Dashboard() {
           <h2 style={{ margin: 0, fontSize: '28px', color: '#1e293b', fontWeight: '700' }}>
             {activeTab === 'appointments' && '📋 All Appointments'}
             {activeTab === 'today' && '📅 Today\'s Visits'}
-            {activeTab === 'doctors' && '👨⚕️ Doctors Management'}
+            {activeTab === 'calendar' && '📆 Doctors Calendar'}
             {activeTab === 'followups' && '📨 Follow-ups'}
           </h2>
-          <button onClick={() => activeTab === 'doctors' ? fetchDoctors() : activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : fetchFollowups()} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+
+           {activeTab === 'calendar' &&
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowDoctorModal(true)} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+                    + Add Doctor
+                  </button>
+                </div>
+          }
+          <button onClick={() => activeTab === 'today' ? fetchTodayVisits() : activeTab === 'appointments' ? fetchAppointments() : activeTab === 'calendar' && calendarDoctor ? fetchWeekSlots(calendarDoctor.id) : activeTab === 'followups' ? fetchFollowups() : null} style={{ padding: '12px 24px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
             🔄 Refresh
           </button>
         </div>
+        
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>Loading...</div>
@@ -369,19 +579,19 @@ function Dashboard() {
                     <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {visit.doctor}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {visit.time_slot}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : '#fef3c7', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {visit.status === 'completed' ? '✅ Completed' : visit.status === 'visited' ? '🏥 Visited' : '⏳ Accepted'}
+                      <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : visit.status === 'accepted' ? '#fef3c7' : '#dbeafe', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : visit.status === 'accepted' ? '#92400e' : '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {visit.status === 'completed' ? '✅ Completed' : visit.status === 'visited' ? '🏥 Visited' : visit.status === 'accepted' ? '⏳ Accepted' : '✅ Confirmed'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        {visit.status === 'accepted' && (
+                        {(visit.status === 'confirmed' || visit.status === 'accepted') && (
                           <button onClick={() => handleMarkVisited(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🏥 Mark Visited</button>
                         )}
                         {visit.status === 'visited' && (
                           <button onClick={() => handleMarkCompleted(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>✅ Mark Completed</button>
                         )}
-                        {(visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed') && (
+                        {(visit.status === 'confirmed' || visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: visit.phone, patientName: visit.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>
@@ -430,7 +640,7 @@ function Dashboard() {
                     <td style={{ padding: '16px', textAlign: 'left' }}>📞 {apt.phone}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>🏥 {apt.category}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>👨⚕️ {apt.doctor}</td>
-                    <td style={{ padding: '16px', textAlign: 'left' }}>📅 {apt.date}</td>
+                    <td style={{ padding: '16px', textAlign: 'left' }}>📅 {formatDate(apt.date)}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>🕐 {apt.time_slot}</td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
                       {apt.token_number ? (
@@ -442,8 +652,8 @@ function Dashboard() {
                       )}
                     </td>
                     <td style={{ padding: '16px', textAlign: 'left' }}>
-                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
-                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                      <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+                        {apt.status === 'completed' ? '✅ Completed' : apt.status === 'visited' ? '🏥 Visited' : apt.status === 'accepted' ? '✅ Accepted' : apt.status === 'confirmed' ? '✅ Confirmed' : apt.status === 'cancelled' ? '❌ Cancelled' : apt.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -455,7 +665,7 @@ function Dashboard() {
                             <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🔄 Change Slot</button>
                           </>
                         )}
-                        {(apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'rejected') && (
+                        {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'cancelled' || apt.status === 'rejected') && (
                           <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📨 Follow-up</button>
                         )}
                       </div>
@@ -529,9 +739,9 @@ function Dashboard() {
                         </span>
                       </td>
                       <td style={{ padding: '16px', textAlign: 'center' }}>
-                        {f.status === 'pending' && (
-                          <button onClick={() => handleSendFollowup(f.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📤 Send</button>
-                        )}
+                        <button onClick={() => handleSendFollowup(f.id)} style={{ padding: '8px 16px', backgroundColor: f.status === 'sent' ? '#3b82f6' : '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                          {f.status === 'sent' ? '🔄 Resend' : '📤 Send'}
+                        </button>
                       </td>
                     </tr>
                     ))
@@ -540,121 +750,245 @@ function Dashboard() {
               </table>
             </div>
           </div>
-        ) : activeTab === 'doctors' ? (
+        ) : activeTab === 'calendar' ? (
           <div>
-            <div style={{ marginBottom: '24px', textAlign: 'right' }}>
-              <button onClick={() => { setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' }); setShowDoctorModal(true) }} style={{ padding: '12px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-                ➕ Add Doctor
-              </button>
-            </div>
-            {showDoctorModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
-                  <h3 style={{ margin: '0 0 24px 0' }}>{editingDoctor ? 'Edit' : 'Add'} Doctor</h3>
-                  <input type="text" placeholder="Name" value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <select value={doctorForm.categoryId} onChange={(e) => setDoctorForm({ ...doctorForm, categoryId: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }}>
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <input type="number" placeholder="Slots Per Day" value={doctorForm.slotsPerDay} onChange={(e) => setDoctorForm({ ...doctorForm, slotsPerDay: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <input type="number" placeholder="Capacity Per Slot (patients)" value={doctorForm.capacityPerSlot} onChange={(e) => setDoctorForm({ ...doctorForm, capacityPerSlot: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <input type="time" placeholder="Start Time" value={doctorForm.startTime} onChange={(e) => setDoctorForm({ ...doctorForm, startTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <input type="time" placeholder="End Time" value={doctorForm.endTime} onChange={(e) => setDoctorForm({ ...doctorForm, endTime: e.target.value })} style={{ width: '100%', padding: '12px', marginBottom: '16px', border: '2px solid #e2e8f0', borderRadius: '8px' }} />
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '', slotsPerDay: '', startTime: '', endTime: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                    <button onClick={handleSaveDoctor} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
+            {!calendarDoctor ? (
+              <>
+                {showDoctorModal && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
+                      <h3 style={{ margin: '0 0 24px 0' }}>{editingDoctor ? 'Edit' : 'Add'} Doctor</h3>
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>👨⚕️ Doctor Name</label>
+                        <input type="text" value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
+                      </div>
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>🏥 Category</label>
+                        <select value={doctorForm.categoryId} onChange={(e) => setDoctorForm({ ...doctorForm, categoryId: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }}>
+                          <option value="">-- Select Category --</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setShowDoctorModal(false); setEditingDoctor(null); setDoctorForm({ name: '', categoryId: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                        <button onClick={handleSaveDoctor} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
+                      </div>
+                    </div>
                   </div>
+                )}
+                {/* <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowDoctorModal(true)} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+                    + Add Doctor
+                  </button>
+                </div> */}
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
+                      <th style={{ padding: '16px', textAlign: 'left' }}>Doctor Name</th>
+                      <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
+                      <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {doctors.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
+                          📭 No doctors added yet
+                        </td>
+                      </tr>
+                    ) : (
+                      doctors.map((doc, i) => (
+                        <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                          <td style={{ padding: '16px', textAlign: 'left' }}>
+                            <div style={{ fontWeight: '600', fontSize: '15px' }}>👨⚕️ {doc.name}</div>
+                          </td>
+                          <td style={{ padding: '16px', textAlign: 'left' }}>
+                            <span style={{ padding: '4px 12px', backgroundColor: '#dbeafe', color: '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>🏥 {doc.category}</span>
+                          </td>
+                          <td style={{ padding: '16px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button onClick={() => { setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: categories.find(c => c.name === doc.category)?.id || '' }); setShowDoctorModal(true) }} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                ✏️ Edit
+                              </button>
+                              <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                🗑️ Delete
+                              </button>
+                              <button onClick={() => { setCalendarDoctor(doc); initializeDateRange(); fetchWeekSlots(doc.id) }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
+                                📆 View Calendar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              </>
+            ) : (
+              <div>
+                <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button onClick={() => { setCalendarDoctor(null); setWeekSlots([]); setWeekAppointments([]); setDateRange({ fromDate: '', toDate: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+                    ← Back to Doctors
+                  </button>
+                  <h3 style={{ margin: 0, fontSize: '20px', color: '#1e40af' }}>👨⚕️ {calendarDoctor.name} - Schedule</h3>
+                </div>
+                <div style={{ marginBottom: '16px', padding: '16px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <label style={{ fontWeight: '600', color: '#475569', fontSize: '14px' }}>📅 From:</label>
+                      <input type="date" value={dateRange.fromDate} onChange={(e) => setDateRange({ ...dateRange, fromDate: e.target.value })} style={{ padding: '8px 12px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <label style={{ fontWeight: '600', color: '#475569', fontSize: '14px' }}>📅 To:</label>
+                      <input type="date" value={dateRange.toDate} onChange={(e) => setDateRange({ ...dateRange, toDate: e.target.value })} style={{ padding: '8px 12px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
+                    </div>
+                    <button onClick={() => shiftWeek('prev')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>← Previous Week</button>
+                    <button onClick={initializeDateRange} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>This Week</button>
+                    <button onClick={() => shiftWeek('next')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Next Week →</button>
+                  </div>
+                </div>
+                {showCalendarSlotModal && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
+                      <h3 style={{ margin: '0 0 24px 0' }}>{editingCalendarSlot ? 'Edit' : 'Add'} Time Slot</h3>
+                      <TimePickerAMPM label="🕐 Start Time" value={calendarSlotForm.startTime} onChange={(val) => setCalendarSlotForm({ ...calendarSlotForm, startTime: val })} />
+                      <TimePickerAMPM label="🕐 End Time" value={calendarSlotForm.endTime} onChange={(val) => setCalendarSlotForm({ ...calendarSlotForm, endTime: val })} />
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>👥 Capacity (patients)</label>
+                        <input type="number" min="1" max="50" value={calendarSlotForm.capacity} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, capacity: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
+                      </div>
+                      {!editingCalendarSlot && (
+                        <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={calendarSlotForm.applyToAll} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, applyToAll: e.target.checked })} style={{ marginRight: '8px' }} />
+                            <span style={{ fontSize: '14px', fontWeight: '600' }}>Apply to all days in the week</span>
+                          </label>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setShowCalendarSlotModal(false); setEditingCalendarSlot(null); setCalendarSlotForm({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                        <button onClick={handleSaveCalendarSlot} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
+                        <th style={{ padding: '16px', textAlign: 'left', width: '150px' }}>Date</th>
+                        <th style={{ padding: '16px', textAlign: 'left', width: '170px' }}>Slot Time</th>
+                        <th style={{ padding: '16px', textAlign: 'center', width: '100px' }}>Capacity</th>
+                        <th style={{ padding: '16px', textAlign: 'center', width: '150px' }}>Actions</th>
+                        <th style={{ padding: '16px', textAlign: 'left' }}>Available Seats</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getWeekDates().map((date, idx) => {
+                        const dateStr = date.toISOString().split('T')[0]
+                        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+                        const dateDisplay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        const daySlots = weekSlots.filter(slot => slot.date === dateStr)
+                        
+                        return daySlots.length === 0 ? (
+                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                            <td style={{ padding: '16px', textAlign: 'left', fontWeight: '600' }}>
+                              {dateDisplay}<br/>
+                              <span style={{ fontSize: '13px', color: '#64748b' }}>({dayName})</span>
+                              <br/>
+                              <button onClick={() => { setCalendarSlotForm({ ...calendarSlotForm, date: dateStr }); setShowCalendarSlotModal(true) }} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>
+                                + Add Slot
+                              </button>
+                            </td>
+                            <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                              No slot added
+                            </td>
+                          </tr>
+                        ) : (
+                          daySlots.map((slot, slotIdx) => (
+                            <tr key={`${dateStr}-${slot.id}`} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                              {slotIdx === 0 && (
+                                <td rowSpan={daySlots.length} style={{ padding: '16px', textAlign: 'left', fontWeight: '600', borderRight: '1px solid #e2e8f0' }}>
+                                  {dateDisplay}<br/>
+                                  <span style={{ fontSize: '13px', color: '#64748b' }}>({dayName})</span>
+                                  <br/>
+                                  <button onClick={() => { setCalendarSlotForm({ ...calendarSlotForm, date: dateStr }); setShowCalendarSlotModal(true) }} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>
+                                    + Add Slot
+                                  </button>
+                                </td>
+                              )}
+                              <td style={{ padding: '16px', textAlign: 'left' }}>{formatTime12Hour(slot.start_time)} - {formatTime12Hour(slot.end_time)}</td>
+                              <td style={{ padding: '16px', textAlign: 'center', fontWeight: '600' }}>{slot.capacity}</td>
+                              <td style={{ padding: '16px', textAlign: 'center' }}>
+                                <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false }); setShowCalendarSlotModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', marginRight: '6px' }}>Edit</button>
+                                <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Delete</button>
+                              </td>
+                              <td style={{ padding: '16px', textAlign: 'left' }}>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                  {(() => {
+                                    const bookedAppointments = weekAppointments.filter(apt => {
+                                      if (apt.date !== dateStr) return false
+                                      if (!['confirmed', 'pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
+                                      
+                                      // Normalize times by removing :00, spaces, and [x/y]
+                                      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotStart = formatTime12Hour(slot.start_time).replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotEnd = formatTime12Hour(slot.end_time).replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
+                                      const slotTimeNorm = `${slotStart}-${slotEnd}`
+                                      
+                                      return aptTime === slotTimeNorm
+                                    })
+                                    
+                                    console.log(`Slot ${dateStr} ${formatTime12Hour(slot.start_time)}-${formatTime12Hour(slot.end_time)}: ${bookedAppointments.length} bookings`)
+                                    
+                                    return Array.from({ length: slot.capacity }).map((_, seatIdx) => {
+                                      const aptForSeat = bookedAppointments[seatIdx]
+                                      const isBooked = !!aptForSeat
+                                      
+                                      return (
+                                        <div key={seatIdx} style={{ 
+                                          width: '80px', 
+                                          height: '60px', 
+                                          border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : '#a78bfa') : '#cbd5e1'), 
+                                          borderRadius: '6px', 
+                                          display: 'flex', 
+                                          flexDirection: 'column',
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : '#ede9fe') : '#f1f5f9', 
+                                          fontSize: '11px', 
+                                          color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#6b21a8') : '#64748b',
+                                          padding: '4px',
+                                          fontWeight: isBooked ? '600' : '400'
+                                        }}>
+                                          {isBooked ? (
+                                            <>
+                                              <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
+                                              <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
+                                              <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#8b5cf6', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+                                                {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : 'Pending'}
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <div style={{ fontSize: '12px' }}>#{seatIdx + 1}</div>
+                                          )}
+                                        </div>
+                                      )
+                                    })
+                                  })()}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
-            <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#1e40af', color: 'white' }}>
-                    <th style={{ padding: '16px', textAlign: 'left' }}>Doctor Name</th>
-                    <th style={{ padding: '16px', textAlign: 'left' }}>Category</th>
-                    <th style={{ padding: '16px', textAlign: 'center' }}>Working Hours</th>
-                    <th style={{ padding: '16px', textAlign: 'center' }}>Slots/Day</th>
-                    <th style={{ padding: '16px', textAlign: 'center' }}>Capacity/Slot</th>
-                    <th style={{ padding: '16px', textAlign: 'center' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {doctors.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px' }}>
-                        📭 No doctors added yet
-                      </td>
-                    </tr>
-                  ) : (
-                    doctors.map((doc, i) => (
-                    <>
-                      <tr key={doc.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                        <td style={{ padding: '16px', textAlign: 'left' }}>
-                          <div style={{ fontWeight: '600', fontSize: '15px' }}>👨⚕️ {doc.name}</div>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'left' }}>
-                          <span style={{ padding: '4px 12px', backgroundColor: '#dbeafe', color: '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>🏥 {doc.category}</span>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '14px', fontWeight: '600' }}>🕐 {formatTime12Hour(doc.start_time?.substring(0, 5))} - {formatTime12Hour(doc.end_time?.substring(0, 5))}</div>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <span style={{ padding: '6px 12px', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>{doc.slots_per_day}</span>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <span style={{ padding: '6px 12px', backgroundColor: '#d1fae5', color: '#065f46', borderRadius: '6px', fontSize: '14px', fontWeight: '700' }}>{doc.capacity_per_slot} patients</span>
-                        </td>
-                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <button onClick={() => { const cat = categories.find(c => c.name === doc.category); setEditingDoctor(doc); setDoctorForm({ name: doc.name, categoryId: cat?.id || '', slotsPerDay: doc.slots_per_day?.toString() || '', capacityPerSlot: doc.capacity_per_slot?.toString() || '5', startTime: doc.start_time?.substring(0, 5) || '', endTime: doc.end_time?.substring(0, 5) || '' }); setShowDoctorModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px', fontSize: '13px' }}>✏️ Edit</button>
-                          <button onClick={() => handleDeleteDoctor(doc.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginRight: '8px', fontSize: '13px' }}>🗑️ Delete</button>
-                          <button onClick={() => { if (selectedDoctor?.id === doc.id) { setSelectedDoctor(null); setDoctorSlots([]) } else { setSelectedDoctor(doc); fetchDoctorSlots(doc.id) } }} style={{ padding: '6px 12px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                            {selectedDoctor?.id === doc.id ? '▲ Hide Slots' : '📋 View Slots'}
-                          </button>
-                        </td>
-                      </tr>
-                      {selectedDoctor?.id === doc.id && (
-                        <tr style={{ backgroundColor: '#f9fafb' }}>
-                          <td colSpan="6" style={{ padding: '16px' }}>
-                            {doctorSlots.length === 0 ? (
-                              <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No bookings yet</div>
-                            ) : (
-                              doctorSlots.map(slot => (
-                                <div key={`${slot.date}_${slot.time_slot}`} style={{ marginBottom: '16px', padding: '16px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <div style={{ fontWeight: '600', fontSize: '14px' }}>📅 {slot.date} - 🕐 {slot.time_slot}</div>
-                                    <div style={{ padding: '4px 12px', backgroundColor: slot.patients.length >= (doc.capacity_per_slot || 5) ? '#fee2e2' : '#d1fae5', color: slot.patients.length >= (doc.capacity_per_slot || 5) ? '#991b1b' : '#065f46', borderRadius: '6px', fontSize: '13px', fontWeight: '700' }}>
-                                      {slot.patients.length}/{doc.capacity_per_slot || 5} booked
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                                    {slot.patients.map(p => (
-                                      <div key={p.id} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                        <div style={{ fontSize: '13px', marginBottom: '4px' }}><strong>👤 {p.patient_name}</strong></div>
-                                        <div style={{ fontSize: '12px', color: '#64748b' }}>📞 {p.phone}</div>
-                                        {p.token_number && (
-                                          <div style={{ fontSize: '12px', marginTop: '4px', color: '#3b82f6', fontWeight: '600' }}>🎫 Token #{p.token_number}</div>
-                                        )}
-                                        <div style={{ fontSize: '12px', marginTop: '6px' }}>
-                                          <span style={{ padding: '4px 8px', backgroundColor: p.status === 'completed' ? '#d1fae5' : p.status === 'visited' ? '#e0e7ff' : p.status === 'accepted' ? '#dbeafe' : '#fef3c7', color: p.status === 'completed' ? '#065f46' : p.status === 'visited' ? '#3730a3' : p.status === 'accepted' ? '#1e40af' : '#92400e', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
-                                            {p.status === 'completed' ? '✅ Completed' : p.status === 'visited' ? '🏥 Visited' : p.status === 'accepted' ? '✅ Accepted' : '⏳ Pending'}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         ) : null}
       </div>

@@ -51,15 +51,12 @@ router.get('/', async (req, res) => {
 router.post('/:id/send', async (req, res) => {
   try {
     const { id } = req.params
+    console.log(`Sending followup ${id}`)
     const followups = await getFollowups()
     const followup = (followups as any[]).find(f => f.id === parseInt(id))
 
     if (!followup) {
       return res.status(404).json({ error: 'Follow-up not found' })
-    }
-
-    if (followup.status === 'sent') {
-      return res.status(400).json({ error: 'Follow-up already sent' })
     }
 
     let message = ''
@@ -69,8 +66,11 @@ router.post('/:id/send', async (req, res) => {
       message = followup.custom_message
     }
 
+    console.log(`Sending message to ${followup.phone}`)
     await sendText(followup.phone, message)
+    console.log(`Message sent, updating status`)
     await markFollowupAsSent(parseInt(id))
+    console.log(`Status updated successfully`)
 
     res.json({ success: true, message: 'Follow-up sent successfully' })
   } catch (error) {

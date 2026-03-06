@@ -39,12 +39,12 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   }
   
   const [timeSlots] = await pool.query(
-    'SELECT * FROM time_slots WHERE doctor_id = ? ORDER BY start_time',
+    'SELECT id, doctor_id, start_time, end_time, capacity, DATE_FORMAT(date, "%Y-%m-%d") as date, created_at FROM time_slots WHERE doctor_id = ? ORDER BY date, start_time',
     [doctorId]
   ) as any
   
   const [appointments] = await pool.query(
-    `SELECT id, patient_name, phone, date, time_slot, status, token_number, created_at
+    `SELECT id, patient_name, phone, DATE_FORMAT(date, '%Y-%m-%d') as date, time_slot, status, token_number, created_at
      FROM appointments 
      WHERE doctor = ?
      ORDER BY date DESC, time_slot, created_at`,
@@ -75,7 +75,7 @@ router.get('/today', async (req, res) => {
     
     const [rows] = await pool.query(`
       SELECT * FROM appointments 
-      WHERE DATE(date) = ? AND status IN ('accepted', 'visited', 'completed')
+      WHERE DATE(date) = ? AND status IN ('confirmed', 'accepted', 'visited', 'completed')
       ORDER BY doctor, time_slot, token_number
     `, [todayStr]) as any
     
@@ -268,10 +268,10 @@ router.delete('/doctors/:id', async (req, res) => {
 // Add time slot
 router.post('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
-  const { startTime, endTime, capacity } = req.body
+  const { startTime, endTime, capacity, date } = req.body
   await pool.query(
-    'INSERT INTO time_slots (doctor_id, start_time, end_time, capacity) VALUES (?, ?, ?, ?)',
-    [doctorId, startTime, endTime, capacity]
+    'INSERT INTO time_slots (doctor_id, start_time, end_time, capacity, date) VALUES (?, ?, ?, ?, STR_TO_DATE(?, "%Y-%m-%d"))',
+    [doctorId, startTime, endTime, capacity, date || null]
   )
   res.json({ success: true, message: 'Time slot added' })
 })

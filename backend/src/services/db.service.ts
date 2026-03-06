@@ -101,10 +101,10 @@ export async function getAllTimeSlotsByDoctor(doctorId: number) {
 export async function saveAppointment(phone: string, patientName: string, category: string, doctor: string, date: string, timeSlot: string, timeSlotId: number) {
   const [result] = await pool.query(
     'INSERT INTO appointments (phone, patient_name, category, doctor, date, time_slot, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [phone, patientName, category, doctor, date, timeSlot, 'pending']
+    [phone, patientName, category, doctor, date, timeSlot, 'confirmed']
   )
   
-  console.log('💾 Appointment saved')
+  console.log('💾 Appointment saved with confirmed status')
   return result
 }
 
@@ -133,10 +133,13 @@ export async function getFollowups() {
 }
 
 export async function markFollowupAsSent(id: number) {
-  await pool.query(
+  console.log(`Marking followup ${id} as sent`)
+  const [result] = await pool.query(
     'UPDATE followups SET status = "sent", sent_at = NOW() WHERE id = ?',
     [id]
-  )
+  ) as any
+  console.log(`Updated ${result.affectedRows} rows`)
+  return result
 }
 
 // Doctor management functions
