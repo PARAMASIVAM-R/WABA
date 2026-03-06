@@ -37,17 +37,16 @@ export async function processBookingMessage(message: {
   }
 
   // Check for cancel keyword
-  if (input === 'cancel') {
-    clearSession(phone)
-    const newSession = getSession(phone)
-    newSession.state = 'cancel_appointment'
-    saveSession(phone, newSession)
-    return await processBookingMessage(message)
+  if (input === 'cancel' && session.state === 'idle') {
+    session.state = 'cancel_appointment'
   }
 
   switch (session.state) {
     case 'idle':
-      if (input.includes('hello') || input.includes('hi') || input.includes('book') || input.includes('appointment')) {
+      if (input.includes('hello') || input.includes('hi')) {
+        response = '👋 Welcome to our Hospital Appointment System!\n\nHow can I help you today?\n\n1️⃣ Book Appointment - Type "book"\n2️⃣ Cancel Appointment - Type "cancel"\n3️⃣ Restart - Type "hi" or "hello"'
+        await sendText(phone, response)
+      } else if (input.includes('book') || input.includes('appointment')) {
         await sendText(phone, '👋 Welcome! I can help you book a doctor appointment.')
         
         const categories = await getCategories()
@@ -68,7 +67,7 @@ export async function processBookingMessage(message: {
         session.state = 'booking_category'
         response = 'Category selection sent'
       } else {
-        response = '👋 Hello! Type "hello" or "book appointment" to get started.'
+        response = '👋 Hello! Type "hi" or "hello" to see available services.'
         await sendText(phone, response)
       }
       break
@@ -260,8 +259,8 @@ export async function processBookingMessage(message: {
         phone,
         `📋 Appointment Summary:\n\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\nPlease confirm your appointment:`,
         [
-          { id: 'confirm', title: '✅Confirm' },
-          { id: 'cancel', title: '❌Cancel' }
+          { id: 'confirm', title: 'Confirm' },
+          { id: 'cancel', title: 'Cancel' }
         ]
       )
       session.state = 'booking_confirm'
@@ -310,8 +309,17 @@ export async function processBookingMessage(message: {
           [phone]
         ) as any
         
-        if (appointments.length === 0) {
-          response = '❌ No active appointments found.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
+        // Filter appointments that can be cancelled (more than 2 hours before)
+        const now = new Date()
+        const cancellableAppointments = appointments.filter((apt: any) => {
+          const [startTime] = apt.time_slot.split(' - ')
+          const aptDateTime = new Date(`${apt.date} ${startTime}`)
+          const hoursDiff = (aptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+          return hoursDiff > 2
+        })
+        
+        if (cancellableAppointments.length === 0) {
+          response = '❌ No appointments available for cancellation.\n\n🕒 Note: Appointments can only be cancelled at least 2 hours before the scheduled time.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
           clearSession(phone)
           break
@@ -323,10 +331,15 @@ export async function processBookingMessage(message: {
           'Select Appointment',
           [{
             title: 'Your Appointments',
-            rows: appointments.map((apt: any) => ({
-              id: apt.id.toString(),
-              title: `${apt.doctor} - ${apt.date} ${apt.time_slot}`.substring(0, 24)
-            }))
+            rows: cancellableAppointments.map((apt: any) => {
+              const aptDate = new Date(apt.date)
+              const formattedDate = aptDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
+              const [startTime] = apt.time_slot.split(' - ')
+              return {
+                id: apt.id.toString(),
+                title: `${apt.doctor} ${formattedDate} ${startTime}`.substring(0, 24)
+              }
+            })
           }]
         )
         session.state = 'cancel_confirm'
@@ -364,10 +377,10 @@ export async function processBookingMessage(message: {
         
         await sendInteractiveButtons(
           phone,
-          `📋 Appointment Details:\n\n👤 Name: ${selectedApt.patient_name}\n👨⚕️ Doctor: ${selectedApt.doctor}\n📅 Date: ${selectedApt.date}\n🕐 Time: ${selectedApt.time_slot}\n\nAre you sure you want to cancel?`,
+          `📋 Appointment Details:\n\n👤 Name: ${selectedApt.patient_name}\n👨⚕️ Doctor: ${selectedApt.doctor}\n📅 Date: ${new Date(selectedApt.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}\n🕐 Time: ${selectedApt.time_slot}\n\nAre you sure you want to cancel?`,
           [
-            { id: `cancel_yes_${selectedApt.id}`, title: '✅ Yes, Cancel' },
-            { id: 'cancel_no', title: '❌ No, Keep It' }
+            { id: `cancel_yes_${selectedApt.id}`, title: 'Yes, Cancel' },
+            { id: 'cancel_no', title: 'No, Keep It' }
           ]
         )
         session.data.cancelId = selectedApt.id

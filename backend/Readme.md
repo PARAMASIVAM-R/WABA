@@ -1,161 +1,200 @@
-# WhatsApp Appointment Booking Bot
+# WhatsApp Appointment Booking System
 
-A production-ready WhatsApp chatbot for booking doctor appointments using WhatsApp Business API with interactive menus and MySQL database.
+A production-ready WhatsApp chatbot for booking doctor appointments using WhatsApp Business API with interactive menus, automated reminders, and self-service cancellation.
 
-## 📁 Project Structure
+## 🎯 Key Features
 
+### Patient Features
+- **Service Menu** - Welcome menu with Book, Cancel, and Restart options
+- **Interactive Booking** - Step-by-step appointment booking with WhatsApp buttons and lists
+- **Instant Confirmation** - Patients confirm appointments directly (no manual approval needed)
+- **Self-Service Cancellation** - Cancel appointments with 2-hour deadline policy
+- **Automated Reminders** - Daily reminders sent at 6 PM for next day appointments
+- **Real-Time Availability** - Shows booked/capacity ratio for each time slot
+
+### Admin Features
+- **Dashboard** - View all appointments and statistics
+- **Today's Visits** - Track daily appointments with status updates
+- **Doctor Calendar** - Weekly view with seat management and patient details
+- **Follow-up Management** - Send/resend follow-up messages to patients
+- **Doctor Management** - Add, edit, and delete doctors
+- **Time Slot Configuration** - Set custom time slots with capacity per doctor
+
+## 📱 Complete Booking Flow
+
+### 1. Service Menu (Entry Point)
 ```
-backend/
-├── src/
-│   ├── config/
-│   │   ├── env.ts              # Environment variables & validation
-│   │   └── whatsapp.ts         # WhatsApp configurations (reserved)
-│   ├── routes/
-│   │   ├── whatsapp.route.ts   # WhatsApp webhook endpoints
-│   │   ├── appointments.route.ts # View appointments API
-│   │   └── invite.route.ts     # Send messages API
-│   ├── services/
-│   │   ├── whatsapp.service.ts # WhatsApp API integration
-│   │   ├── booking.service.ts  # Booking conversation flow
-│   │   └── db.service.ts       # MySQL database operations
-│   ├── state/
-│   │   └── session.store.ts    # In-memory session management
-│   ├── utils/
-│   │   └── webhook.util.ts     # Webhook payload parser
-│   ├── app.ts                  # Express app configuration
-│   ├── server.ts               # Server entry point with DB init
-│   ├── seed.ts                 # Database seeding script
-│   ├── fix-table.ts            # Database migration helper
-│   └── test-api.ts             # API credentials tester
-├── .env                        # Environment variables (DO NOT COMMIT)
-├── .gitignore                  # Git ignore rules
-├── package.json                # Dependencies & scripts
-├── tsconfig.json               # TypeScript configuration
-└── README.md                   # This file
+User types: "hi" or "hello"
+  ↓
+Bot shows menu:
+📋 Welcome! Choose a service:
+1️⃣ Book - Schedule new appointment
+2️⃣ Cancel - Cancel existing appointment
+3️⃣ Restart - Start over
+
+User types: "book"
 ```
 
-## 🎯 File Purposes
+### 2. Booking Process
+```
+Step 1: Select Category
+Bot: [Interactive List] Medical Categories
+User: Selects "Cardiology"
 
-### **Core Application**
-- **server.ts** - Initializes database and starts Express server
-- **app.ts** - Configures Express middleware and registers all routes
-- **test-api.ts** - Validates WhatsApp API credentials
+Step 2: Select Doctor
+Bot: [Interactive List] Available Doctors
+User: Selects "Dr. Michael Brown"
 
-### **Configuration**
-- **config/env.ts** - Loads and validates environment variables (WhatsApp + MySQL)
-- **.env** - Stores sensitive credentials (never commit!)
+Step 3: Select Date
+Bot: [Interactive List] Next 7 days
+User: Selects "Tomorrow (15 Jan)"
 
-### **Routes (API Endpoints)**
-- **routes/whatsapp.route.ts** 
-  - `GET /webhooks/whatsapp` - Webhook verification
-  - `POST /webhooks/whatsapp` - Receive WhatsApp messages
-  - `POST /webhooks/whatsapp/test` - Test endpoint with response
-  
-- **routes/appointments.route.ts**
-  - `GET /appointments` - View all appointments
-  - `GET /appointments/:phone` - View appointments by phone number
-  
-- **routes/invite.route.ts**
-  - `POST /invite/send` - Send text messages to users
+Step 4: Select Time Slot
+Bot: [Interactive List] Available slots with capacity
+     Example: "10AM - 11AM [2/5]" (2 booked, 5 total)
+User: Selects "10AM - 11AM [2/5]"
 
-### **Services (Business Logic)**
-- **services/whatsapp.service.ts** - WhatsApp API functions:
-  - `sendText()` - Send plain text messages
-  - `sendInteractiveList()` - Send selectable lists
-  - `sendInteractiveButtons()` - Send clickable buttons
-  
-- **services/booking.service.ts** - Appointment booking flow:
-  - Manages 6-step conversation (category → doctor → date → time → reason → confirm)
-  - Validates user selections
-  - Generates dynamic date options (next 7 days)
-  - Fetches doctors and time slots from database
-  
-- **services/db.service.ts** - MySQL database operations:
-  - `initDB()` - Creates tables on startup
-  - `getCategories()` - Fetch medical categories
-  - `getDoctorsByCategory()` - Fetch doctors by category
-  - `getTimeSlotsByDoctor()` - Fetch available time slots
-  - `saveAppointment()` - Store booking in database
-  - `getAppointments()` - Retrieve all appointments
-  - `getAppointmentsByPhone()` - Retrieve user's appointments
+Step 5: Enter Name
+Bot: "Please enter your full name: 👤"
+User: Types "John Doe"
 
-### **State Management**
-- **state/session.store.ts** - In-memory session storage:
-  - Tracks conversation state per user
-  - Stores temporary booking data (category, doctor, date, time, reason)
-  - Clears session after successful booking
+Step 6: Confirmation
+Bot: Shows summary with interactive buttons:
+     📋 Appointment Summary:
+     👤 Name: John Doe
+     🏥 Category: Cardiology
+     👨⚕️ Doctor: Dr. Michael Brown
+     📅 Date: Tomorrow (15 Jan)
+     🕐 Time: 10AM - 11AM
+     
+     [✅ Confirm] [❌ Cancel]
 
-### **Utilities**
-- **utils/webhook.util.ts** - Parses WhatsApp webhook payloads:
-  - Extracts text messages
-  - Extracts interactive list/button responses
+User: Clicks "✅ Confirm"
 
-### **Database Scripts**
-- **seed.ts** - Populates database with sample data (5 categories, 7 doctors, time slots)
-- **fix-table.ts** - Recreates appointments table with correct schema
+Bot: ✅ Appointment Confirmed!
+     Status: Confirmed
+     Please arrive 10 minutes early.
+     Thank you! 🙏
+```
+
+### 3. Cancellation Flow
+```
+User types: "cancel"
+  ↓
+Bot: [Interactive List] Your Appointments
+     Example: "Dr. Anil Verma 15/01 9AM"
+     (Only shows appointments >2 hours away)
+  ↓
+User: Selects appointment
+  ↓
+Bot: [Interactive Buttons]
+     ⚠️ Cancel this appointment?
+     Dr. Anil Verma
+     15/01 at 9AM
+     
+     [✅ Yes, Cancel] [❌ No, Keep It]
+  ↓
+User: Clicks "✅ Yes, Cancel"
+  ↓
+Bot: ✅ Appointment cancelled successfully!
+     The slot is now available for others.
+```
+
+### 4. Automated Reminders
+```
+Daily at 6 PM:
+Bot sends to patients with appointments tomorrow:
+
+🔔 Appointment Reminder
+
+Hello [Patient Name]!
+
+This is a reminder for your appointment:
+👨⚕️ Doctor: Dr. Michael Brown
+📅 Date: Tomorrow (15 Jan)
+🕐 Time: 10AM - 11AM
+
+📍 Please arrive 10 minutes early.
+
+Need to cancel? Reply "cancel"
+```
 
 ## 🗄️ Database Schema
 
-### **categories**
+### categories
 ```sql
 id INT PRIMARY KEY AUTO_INCREMENT
 name VARCHAR(100) NOT NULL
 ```
 
-### **doctors**
+### doctors
 ```sql
 id INT PRIMARY KEY AUTO_INCREMENT
 name VARCHAR(100) NOT NULL
 category_id INT NOT NULL (FK → categories.id)
 ```
 
-### **time_slots**
+### time_slots
 ```sql
 id INT PRIMARY KEY AUTO_INCREMENT
 doctor_id INT NOT NULL (FK → doctors.id)
-time VARCHAR(20) NOT NULL
+date DATE NOT NULL
+start_time TIME NOT NULL
+end_time TIME NOT NULL
+capacity INT NOT NULL DEFAULT 5
 ```
 
-### **appointments**
+### appointments
 ```sql
 id INT PRIMARY KEY AUTO_INCREMENT
 phone VARCHAR(20) NOT NULL
+name VARCHAR(100) NOT NULL
 category VARCHAR(100) NOT NULL
 doctor VARCHAR(100) NOT NULL
-date VARCHAR(50) NOT NULL
-time VARCHAR(50) NOT NULL
-reason TEXT NOT NULL
+date DATE NOT NULL
+time_slot VARCHAR(50) NOT NULL
+status ENUM('pending', 'confirmed', 'accepted', 'visited', 'completed', 'cancelled') DEFAULT 'confirmed'
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+```
+
+### followups
+```sql
+id INT PRIMARY KEY AUTO_INCREMENT
+appointment_id INT NOT NULL (FK → appointments.id)
+message TEXT NOT NULL
+status ENUM('pending', 'sent') DEFAULT 'pending'
+sent_at TIMESTAMP NULL
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
 
 ## 🚀 Setup Instructions
 
-### **1. Prerequisites**
+### 1. Prerequisites
 - Node.js v16+
 - MySQL 5.7+ or 8.0+
 - WhatsApp Business API account
 - ngrok account (free tier works)
 
-### **2. Install Dependencies**
+### 2. Install Dependencies
 ```bash
 cd backend
 npm install
 ```
 
-### **3. Setup MySQL Database**
+### 3. Setup MySQL Database
 ```sql
 CREATE DATABASE WABA;
 ```
 
-### **4. Get WhatsApp Credentials**
+### 4. Get WhatsApp Credentials
 1. Go to https://developers.facebook.com/apps
 2. Create/select app → **WhatsApp** → **API Setup**
 3. Copy:
    - **Phone Number ID**
-   - **Access Token** (Generate Access Token button)
+   - **Access Token**
 
-### **5. Configure Environment**
-Edit `.env`:
+### 5. Configure Environment
+Create `.env`:
 ```env
 PORT=3000
 WHATSAPP_VERIFY_TOKEN=PARAMAA007
@@ -168,20 +207,18 @@ DB_PASSWORD=your_mysql_password
 DB_NAME=WABA
 ```
 
-### **6. Seed Database**
+### 6. Setup Database
 ```bash
-npm run seed
+npx ts-node src/setup-db.ts
 ```
-This creates 5 categories, 7 doctors, and time slots (9 AM - 4 PM).
 
-### **7. Test API Credentials**
+### 7. Test API Credentials
 ```bash
 npx ts-node src/test-api.ts
 ```
 Expected: `✅ SUCCESS! API is working`
 
-### **8. Setup Webhook**
- npx ts-node src/setup-db.ts  -- for setup/ reset database tables
+### 8. Setup Webhook
 
 **Terminal 1 - Start Server:**
 ```bash
@@ -203,148 +240,112 @@ Copy HTTPS URL (e.g., `https://abc123.ngrok-free.app`)
 6. **Verify and Save**
 7. Subscribe to **messages**
 
-### **9. Test on WhatsApp**
+### 9. Test on WhatsApp
 1. Add your phone to test numbers in Meta
 2. Send "hi" to your WhatsApp Business number
 3. Follow the interactive booking flow!
 
-## 📱 Conversation Flow
+## 🎨 Admin Dashboard Features
 
-```
-User: "hi"
-  ↓
-Bot: "👋 Welcome! I can help you book a doctor appointment."
-Bot: [Interactive List] Select Category
-  ↓
-User: Selects "Cardiology"
-  ↓
-Bot: [Interactive List] Select Doctor (Dr. Michael Brown, Dr. Emily Davis)
-  ↓
-User: Selects "Dr. Michael Brown"
-  ↓
-Bot: [Interactive List] Select Date (Today, Tomorrow, + 5 more days)
-  ↓
-User: Selects "Tomorrow"
-  ↓
-Bot: [Interactive List] Select Time (9:00 AM - 4:00 PM slots)
-  ↓
-User: Selects "10:00 AM"
-  ↓
-Bot: "⏰ Time confirmed! What is the reason for your visit? 🏥"
-  ↓
-User: Types "Regular checkup"
-  ↓
-Bot: "✅ Appointment Confirmed!
-      📋 Summary:
-      🏥 Category: Cardiology
-      👨⚕️ Doctor: Dr. Michael Brown
-      📅 Date: tomorrow
-      🕐 Time: 10:00 AM
-      💬 Reason: Regular checkup
-      Thank you! See you soon! 🙏"
-```
+### Dashboard Tab
+- View all appointments
+- Filter by date range (From/To dates)
+- Quick navigation: Previous Week, This Week, Next Week
+- Add time slots with custom capacity
+- Time picker with AM/PM format
 
-## 🔌 API Endpoints
+### Today's Visits Tab
+- View today's appointments
+- Update status: Pending → Accepted → Visited → Completed
+- Color-coded status badges:
+  - Completed: Green
+  - Visited: Blue
+  - Accepted: Yellow
+  - Confirmed: Light Blue
+  - Pending: Purple
+  - Cancelled: Red
 
-### **WhatsApp Webhook**
-- `GET /webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=PARAMAA007&hub.challenge=test`
-  - Webhook verification by Meta
-  
-- `POST /webhooks/whatsapp`
-  - Receives WhatsApp messages
-  - Returns 200 OK immediately
-  
-- `POST /webhooks/whatsapp/test`
-  - Test endpoint that returns bot response
+### Doctor Calendar Tab
+- Weekly calendar view per doctor
+- Visual seat boxes showing patient names
+- Status-based color coding
+- Refresh button to reload data
+- Empty slots show "No slot added"
 
-### **Appointments**
-- `GET /appointments`
-  - Returns all appointments
-  
-- `GET /appointments/916379773448`
-  - Returns appointments for specific phone
+### Follow-ups Tab
+- View all follow-up messages
+- Send/Resend follow-up messages
+- Track sent status with timestamp
+- Button changes: "📤 Send" (green) → "🔄 Resend" (blue)
 
-### **Messaging**
-- `POST /invite/send`
-  - Body: `{ "phone": "916379773448", "message": "Hello!" }`
-  - Sends text message to user
+### Doctor Management
+- Add new doctors with category selection
+- Edit existing doctor details
+- Delete doctors (with confirmation)
 
-## 🧪 Testing
+## 🔧 Key Technical Features
 
-### **Postman - Simulate WhatsApp Message**
-```
-POST http://localhost:3000/webhooks/whatsapp/test
-Content-Type: application/json
+### Session Management
+- In-memory session store per phone number
+- Tracks conversation state and booking data
+- Auto-clears after completion or cancellation
+- Supports restart at any point
 
-{
-  "entry": [{
-    "changes": [{
-      "value": {
-        "messages": [{
-          "from": "916379773448",
-          "type": "text",
-          "text": { "body": "hi" }
-        }]
-      }
-    }]
-  }]
-}
-```
+### Time Format
+- WhatsApp display: "10AM - 11AM [2/5]"
+- Database storage: "10AM - 11AM"
+- Admin UI: AM/PM dropdowns (hour 1-12, minute 00-59)
 
-### **View Appointments**
-```
-GET http://localhost:3000/appointments
-```
+### Capacity Management
+- Real-time booking count per slot
+- Only shows slots with available capacity
+- Counts confirmed, accepted, visited, completed statuses
+- Excludes cancelled appointments
 
-## 🔧 Troubleshooting
+### Cancellation Policy
+- 2-hour deadline before appointment time
+- Only shows cancellable appointments
+- Filters past dates automatically
+- Frees up slot capacity immediately
 
-### **No response in WhatsApp**
-1. Check server logs for errors
-2. Verify token: `npx ts-node src/test-api.ts`
-3. Check ngrok: `http://127.0.0.1:4040`
-4. Ensure webhook subscribed to "messages"
-5. Restart server after code changes
+### Automated Reminders
+- Cron job runs daily at 6 PM (schedule: '0 18 * * *')
+- Sends reminders for next day appointments
+- Includes patient name, doctor, date, time
+- Provides cancel option
 
-### **Database errors**
+## 🛠️ Available Scripts
+
 ```bash
-npx ts-node src/fix-table.ts
-npm run seed
+npm run dev                      # Start development server
+npx ts-node src/setup-db.ts      # Setup/reset database
+npx ts-node src/test-api.ts      # Test WhatsApp API
+npx ts-node src/test-reminder.ts # Test reminder service manually
 ```
 
-### **Webhook verification fails**
-- Server must be running
-- Verify token must match `.env`
-- Use HTTPS URL from ngrok
-- Check ngrok auth token configured
+## 📊 Appointment Status Flow
 
-### **Access token expired**
-- Temporary tokens expire in 24 hours
-- Generate new token from Meta Developer Console
-- Update `.env` and restart server
+```
+Patient books → confirmed
+     ↓
+Admin accepts → accepted
+     ↓
+Patient arrives → visited
+     ↓
+Consultation done → completed
 
-## 📊 Sample Data
+OR
 
-**Categories:** General Medicine, Cardiology, Dermatology, Pediatrics, Orthopedics
-
-**Doctors:**
-- Dr. John Smith (General Medicine)
-- Dr. Sarah Johnson (General Medicine)
-- Dr. Michael Brown (Cardiology)
-- Dr. Emily Davis (Cardiology)
-- Dr. David Wilson (Dermatology)
-- Dr. Lisa Anderson (Pediatrics)
-- Dr. Robert Taylor (Orthopedics)
-
-**Time Slots:** 9:00 AM, 10:00 AM, 11:00 AM, 2:00 PM, 3:00 PM, 4:00 PM
+Patient cancels → cancelled
+```
 
 ## 🔐 Security Best Practices
 
 - ✅ Never commit `.env` file
 - ✅ Rotate access tokens regularly
-- ✅ Use permanent tokens for production (System User)
-- ✅ Validate webhook signatures in production
-- ✅ Use environment variables for all secrets
-- ✅ Implement rate limiting for production
+- ✅ Use permanent tokens for production
+- ✅ Validate webhook signatures
+- ✅ Implement rate limiting
 - ✅ Add authentication for admin endpoints
 
 ## 📝 Production Considerations
@@ -356,27 +357,27 @@ npm run seed
 - Set up monitoring (Sentry/DataDog)
 - Use PM2 for process management
 - Add unit and integration tests
-- Implement appointment cancellation
-- Add reminder notifications
-- Create admin dashboard
-
-## 🛠️ Available Scripts
-
-```bash
-npm run dev      # Start development server with auto-reload
-npm run seed     # Populate database with sample data
-npx ts-node src/test-api.ts    # Test WhatsApp API credentials
-npx ts-node src/fix-table.ts   # Fix appointments table schema
-```
 
 ## 📚 Tech Stack
 
-- **Runtime:** Node.js + TypeScript
-- **Framework:** Express.js
-- **Database:** MySQL 8.0
-- **WhatsApp:** Meta Business API
-- **Tools:** ngrok, ts-node-dev
-- **Libraries:** axios, mysql2, dotenv
+**Backend:**
+- Node.js + TypeScript
+- Express.js
+- MySQL 8.0
+- node-cron (automated reminders)
+
+**Frontend:**
+- React + Vite
+- Tailwind CSS
+- Axios
+
+**WhatsApp:**
+- Meta Business API
+- Interactive Lists & Buttons
+
+**Tools:**
+- ngrok (webhook tunneling)
+- ts-node-dev (development)
 
 ## 📖 Resources
 
@@ -385,37 +386,6 @@ npx ts-node src/fix-table.ts   # Fix appointments table schema
 - [ngrok Documentation](https://ngrok.com/docs)
 - [MySQL Documentation](https://dev.mysql.com/doc/)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch
-3. Commit changes
-4. Push to branch
-5. Open pull request
-
-## 📄 License
-
-ISC
-
 ---
 
 **Built with ❤️ for seamless appointment booking via WhatsApp**
-
-
-
-# Features Added:
-Cancel Command: Patients can type "cancel" anytime to start cancellation
-
-## Cancellation Flow:
-
-Shows list of active appointments (confirmed/accepted, future dates only)
-Patient selects appointment to cancel
-Confirmation step with Yes/No buttons
-Updates status to 'cancelled' in database
-Smart Filtering: Only shows cancellable appointments (not past dates, not already visited/completed)
-User-Friendly: Uses interactive lists and buttons for easy selection
-
-### How It Works:
-Patient types "cancel" → Sees their appointments → Selects one → Confirms cancellation → Slot freed
-
-The cancelled appointments won't count toward slot capacity, freeing up space for other patients to book!
