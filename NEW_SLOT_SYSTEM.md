@@ -13,7 +13,7 @@ When adding a doctor, admin sets:
 - **Patients per slot**: Maximum patients per time slot (e.g., 5 patients)
 - **Start time**: When the doctor starts work (e.g., 09:00 AM)
 
-Example:
+Example:  hhhh
 ```
 Doctor: Dr. Smith
 Slots per day: 4
