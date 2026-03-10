@@ -93,17 +93,17 @@ export async function processBookingMessage(message: {
         )
         response = 'Service menu sent'
       } else if (input.includes('book') || input.includes('appointment')) {
-        await sendText(phone, '👋 Welcome! I can help you book a doctor appointment.')
+        await sendText(phone, 'Welcome! I can help you book a doctor appointment.')
         
         const categories = await getCategories()
         if (categories.length === 0) {
-          response = '❌ No categories available. Please contact admin.'
+          response = 'No categories available. Please contact admin.'
           await sendText(phone, response)
           break
         }
         await sendInteractiveList(
           phone,
-          '🏥 Please select a medical category to book your appointment:',
+          'Please select a medical category to book your appointment:',
           'Select Category',
           [{
             title: 'Medical Categories',
@@ -122,7 +122,7 @@ export async function processBookingMessage(message: {
       const categories = await getCategories()
       const selectedCategory = categories.find(c => c.name.toLowerCase() === input)
       if (!selectedCategory) {
-        response = '❌ Please select a category from the list provided.'
+        response = 'Please select a category from the list provided.'
         await sendText(phone, response)
         break
       }
@@ -130,13 +130,13 @@ export async function processBookingMessage(message: {
       
       const doctors = await getDoctorsByCategory(selectedCategory.id)
       if (doctors.length === 0) {
-        response = '❌ No doctors available in this category.'
+        response = 'No doctors available in this category.'
         await sendText(phone, response)
         break
       }
       await sendInteractiveList(
         phone,
-        `👨⚕️ Select a doctor from ${selectedCategory.name}:`,
+        `Select a doctor from ${selectedCategory.name}:`,
         'Select Doctor',
         [{
           title: 'Available Doctors',
@@ -163,7 +163,7 @@ export async function processBookingMessage(message: {
       const dates = getNext7Days()
       await sendInteractiveList(
         phone,
-        '📅 Select your preferred date:',
+        'Select your preferred date:',
         'Select Date',
         [{
           title: 'Available Dates',
@@ -214,13 +214,13 @@ export async function processBookingMessage(message: {
         // Fetch configured time slots for this doctor and date
         const [slots] = await pool.query(
           `SELECT * FROM time_slots 
-           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) 
+           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) AND COALESCE(is_available, 1) = 1
            ORDER BY start_time`,
           [doctorObj.id, formattedDate]
         ) as any
         
         if (slots.length === 0) {
-          response = '❌ No time slots available for this doctor on the selected date.\n\n💡 To book a new appointment, please type:\n• "hi" or "hello" or "book"'
+          response = 'No time slots available for this doctor on the selected date.\n\nTo book a new appointment, please type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
           clearSession(phone)
           break
@@ -281,7 +281,7 @@ export async function processBookingMessage(message: {
       console.log('Total available slots:', timeSlots.length)
       
       if (timeSlots.length === 0) {
-        response = '❌ All seats are filled for this date.\n\n💡 To book another date, please type:\n• "hi" or "hello" or "book"'
+        response = 'All seats are filled for this date.\n\nTo book another date, please type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
         clearSession(phone)
         break
@@ -289,7 +289,7 @@ export async function processBookingMessage(message: {
       
       await sendInteractiveList(
         phone,
-        '🕐 Select your preferred time slot:',
+        'Select your preferred time slot:',
         'Select Time',
         [{
           title: 'Available Slots',
@@ -304,7 +304,7 @@ export async function processBookingMessage(message: {
       // Remove the booking count from time slot before saving
       const cleanTimeSlot = message.text.replace(/\s*\[\d+\/\d+\]\s*$/, '')
       session.data.time = cleanTimeSlot
-      response = '⏰ Time confirmed!\n\nPlease enter your full name: 👤'
+      response = 'Time confirmed!\n\nPlease enter your full name:'
       await sendText(phone, response)
       session.state = 'booking_name'
       break
@@ -315,7 +315,7 @@ export async function processBookingMessage(message: {
       const displayDate = session.data.dateDisplay || session.data.date || 'N/A'
       await sendInteractiveButtons(
         phone,
-        `📋 Appointment Summary:\n\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate}\n🕐 Time: ${session.data.time}\n\nPlease confirm your appointment:`,
+        `Appointment Summary:\n\nName: ${session.data.name}\nCategory: ${session.data.category}\nDoctor: ${session.data.doctor}\nDate: ${displayDate}\nTime: ${session.data.time}\n\nPlease confirm your appointment:`,
         [
           { id: 'confirm', title: 'Confirm' },
           { id: 'cancel', title: 'Cancel' }
@@ -683,7 +683,7 @@ export async function processBookingMessage(message: {
       try {
         const [slotsR] = await poolR3.query(
           `SELECT * FROM time_slots 
-           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) 
+           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) AND COALESCE(is_available, 1) = 1
            ORDER BY start_time`,
           [doctorObjR.id, formattedDateR]
         ) as any

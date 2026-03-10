@@ -562,4 +562,71 @@ router.delete('/slots/:id', async (req, res) => {
   }
 })
 
+// Make slot available again
+router.post('/slots/:id/make-available', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [slot] = await pool.query(
+      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
+      [id]
+    ) as any
+    
+    if (!slot[0]) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+    
+    const slotInfo = slot[0]
+    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
+    
+    if (!slotDate) {
+      return res.status(400).json({ error: 'Invalid slot date' })
+    }
+    
+    // Mark slot as available
+    await pool.query('UPDATE time_slots SET is_available = 1 WHERE id = ?', [id])
+    
+    const formatTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':')
+      const hour = parseInt(h || '0')
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const mins = m === '00' ? '' : `:${m}`
+      return `${hour12}${mins}${ampm}`
+    }
+    
+    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
+    
+    const [appointments] = await pool.query(
+      `SELECT * FROM appointments 
+       WHERE doctor = ? AND status IN ('doctor_not_available', 'cancelled_by_hospital')`,
+      [slotInfo.doctor_name]
+    ) as any
+    
+    const dateFilteredAppointments = appointments.filter((apt: any) => {
+      const aptDate = new Date(apt.date).toISOString().split('T')[0]
+      return aptDate === slotDate
+    })
+    
+    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
+      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
+      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
+      return aptTime === slotTimeNorm
+    })
+    
+    for (const apt of affectedAppointments) {
+      await pool.query('DELETE FROM appointments WHERE id = ?', [apt.id])
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Slot made available and patients removed', 
+      removedPatients: affectedAppointments.length 
+    })
+  } catch (error) {
+    console.error('Error making slot available:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router
