@@ -1109,7 +1109,7 @@ function Dashboard() {
  {(() => {
  const bookedAppointments = weekAppointments.filter(apt => {
  if (apt.date !== dateStr) return false
- if (!['confirmed', 'pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
+ if (!['confirmed', 'pending', 'accepted', 'visited', 'completed', 'no_show'].includes(apt.status)) return false
  
  // Normalize times by removing :00, spaces, and [x/y]
  const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
@@ -1130,15 +1130,15 @@ function Dashboard() {
  <div key={seatIdx} style={{ 
  width: '80px', 
  height: '60px', 
- border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : aptForSeat.status === 'doctor_not_available' ? '#ef4444' : aptForSeat.status === 'cancelled_by_hospital' ? '#ef4444' : '#3b82f6') : '#cbd5e1'), 
+ border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : aptForSeat.status === 'no_show' ? '#ef4444' : aptForSeat.status === 'doctor_not_available' ? '#ef4444' : aptForSeat.status === 'cancelled_by_hospital' ? '#ef4444' : '#3b82f6') : '#cbd5e1'), 
  borderRadius: '6px', 
  display: 'flex', 
  flexDirection: 'column',
  alignItems: 'center', 
  justifyContent: 'center', 
- backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : aptForSeat.status === 'doctor_not_available' ? '#fee2e2' : aptForSeat.status === 'cancelled_by_hospital' ? '#fee2e2' : '#dbeafe') : '#f1f5f9', 
+ backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : aptForSeat.status === 'no_show' ? '#fee2e2' : aptForSeat.status === 'doctor_not_available' ? '#fee2e2' : aptForSeat.status === 'cancelled_by_hospital' ? '#fee2e2' : '#dbeafe') : '#f1f5f9', 
  fontSize: '11px', 
- color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af') : '#64748b',
+ color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'no_show' ? '#991b1b' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af') : '#64748b',
  padding: '4px',
  fontWeight: isBooked ? '600' : '400'
  }}>
@@ -1146,8 +1146,8 @@ function Dashboard() {
  <>
  <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
  <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
- <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
- {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Confirmed'}
+ <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'no_show' ? '#991b1b' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+ {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'no_show' ? 'No Show' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Confirmed'}
  </div>
  </>
  ) : (
