@@ -214,7 +214,7 @@ export async function processBookingMessage(message: {
         // Fetch configured time slots for this doctor and date
         const [slots] = await pool.query(
           `SELECT * FROM time_slots 
-           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) 
+           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) AND COALESCE(is_available, 1) = 1
            ORDER BY start_time`,
           [doctorObj.id, formattedDate]
         ) as any
@@ -683,7 +683,7 @@ export async function processBookingMessage(message: {
       try {
         const [slotsR] = await poolR3.query(
           `SELECT * FROM time_slots 
-           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) 
+           WHERE doctor_id = ? AND (date IS NULL OR DATE_FORMAT(date, '%Y-%m-%d') = ?) AND COALESCE(is_available, 1) = 1
            ORDER BY start_time`,
           [doctorObjR.id, formattedDateR]
         ) as any

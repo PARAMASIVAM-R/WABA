@@ -391,6 +391,26 @@ function Dashboard() {
  }
  }
 
+ const handleMakeSlotAvailable = async (id) => {
+ if (!await showConfirm('✅ Make this slot available again? All cancelled patients will be removed from this slot.')) return
+ try {
+ const res = await fetch(`${API_URL}/admin/appointments/slots/${id}/make-available`, { method: 'POST' })
+ const data = await res.json()
+ if (data.success) {
+ showToast(`Slot made available! ${data.removedPatients} patients removed.`)
+ if (calendarDoctor) {
+ fetchWeekSlots(calendarDoctor.id)
+ } else if (selectedDoctor) {
+ fetchDoctorSlots(selectedDoctor.id)
+ }
+ } else {
+ showToast('Error making slot available', 'error')
+ }
+ } catch (error) {
+ showToast('Error making slot available', 'error')
+ }
+ }
+
  const handleCreateFollowup = async (e) => {
  e.preventDefault()
  if (!followupForm.phone) return showToast('Phone required', 'error')
@@ -1075,9 +1095,13 @@ function Dashboard() {
  <td style={{ padding: '16px', textAlign: 'center', fontWeight: '600' }}>{slot.capacity}</td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
- <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false, selectedDays: [] }); setShowCalendarSlotModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Edit</button>
- {slot.is_available !== 0 && <button onClick={() => handleSlotNotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Not Available</button>}
- <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Delete</button>
+ <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false, selectedDays: [] }); setShowCalendarSlotModal(true) }} disabled={slot.is_available === 0} style={{ padding: '6px 12px', backgroundColor: slot.is_available === 0 ? '#9ca3af' : '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: slot.is_available === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '500' }}>Edit</button>
+ {slot.is_available === 0 ? (
+ <button onClick={() => handleMakeSlotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Make Available</button>
+ ) : (
+ <button onClick={() => handleSlotNotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Not Available</button>
+ )}
+ <button onClick={() => handleDeleteSlot(slot.id)} disabled={slot.is_available === 0} style={{ padding: '6px 12px', backgroundColor: slot.is_available === 0 ? '#9ca3af' : '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: slot.is_available === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '500' }}>Delete</button>
  </div>
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
@@ -1094,7 +1118,7 @@ function Dashboard() {
  const slotTimeNorm = `${slotStart}-${slotEnd}`
  
  return aptTime === slotTimeNorm
- })
+ }).map(apt => ({ ...apt, status: apt.status === 'pending' ? 'confirmed' : apt.status }))
  
  console.log(`Slot ${dateStr} ${formatTime12Hour(slot.start_time)}-${formatTime12Hour(slot.end_time)}: ${bookedAppointments.length} bookings`)
  
@@ -1106,15 +1130,15 @@ function Dashboard() {
  <div key={seatIdx} style={{ 
  width: '80px', 
  height: '60px', 
- border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : aptForSeat.status === 'doctor_not_available' ? '#ef4444' : aptForSeat.status === 'cancelled_by_hospital' ? '#ef4444' : '#a78bfa') : '#cbd5e1'), 
+ border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : aptForSeat.status === 'doctor_not_available' ? '#ef4444' : aptForSeat.status === 'cancelled_by_hospital' ? '#ef4444' : '#3b82f6') : '#cbd5e1'), 
  borderRadius: '6px', 
  display: 'flex', 
  flexDirection: 'column',
  alignItems: 'center', 
  justifyContent: 'center', 
- backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : aptForSeat.status === 'doctor_not_available' ? '#fee2e2' : aptForSeat.status === 'cancelled_by_hospital' ? '#fee2e2' : '#ede9fe') : '#f1f5f9', 
+ backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : aptForSeat.status === 'doctor_not_available' ? '#fee2e2' : aptForSeat.status === 'cancelled_by_hospital' ? '#fee2e2' : '#dbeafe') : '#f1f5f9', 
  fontSize: '11px', 
- color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#6b21a8') : '#64748b',
+ color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af') : '#64748b',
  padding: '4px',
  fontWeight: isBooked ? '600' : '400'
  }}>
@@ -1122,8 +1146,8 @@ function Dashboard() {
  <>
  <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
  <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
- <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#8b5cf6', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
- {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Pending'}
+ <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+ {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Confirmed'}
  </div>
  </>
  ) : (
