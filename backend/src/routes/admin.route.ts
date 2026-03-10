@@ -46,7 +46,7 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   const [appointments] = await pool.query(
     `SELECT id, patient_name, phone, DATE_FORMAT(date, '%Y-%m-%d') as date, time_slot, status, token_number, created_at
      FROM appointments 
-     WHERE doctor = ? AND status IN ('confirmed', 'pending', 'accepted', 'visited', 'completed', 'cancelled_by_hospital', 'doctor_not_available')
+     WHERE doctor = ? AND status IN ('confirmed', 'pending', 'accepted', 'visited', 'completed', 'cancelled_by_hospital', 'doctor_not_available', 'no_show')
      ORDER BY date DESC, time_slot, created_at`,
     [doctor[0].name]
   ) as any
@@ -70,12 +70,12 @@ router.get('/today', async (req, res) => {
     console.log('Looking for date:', todayStr)
     
     // First check all appointments to debug
-    const [allRows] = await pool.query('SELECT id, patient_name, date, status FROM appointments ORDER BY date DESC LIMIT 10') as any
+    const [allRows] = await pool.query('SELECT id, patient_name, DATE_FORMAT(date, "%Y-%m-%d") as formatted_date, date, status FROM appointments ORDER BY date DESC LIMIT 10') as any
     console.log('Recent appointments in DB:', allRows)
     
     const [rows] = await pool.query(`
-      SELECT * FROM appointments 
-      WHERE DATE(date) = ? AND status IN ('active', 'confirmed', 'accepted', 'visited', 'completed', 'no_show')
+      SELECT *, DATE_FORMAT(date, '%Y-%m-%d') as formatted_date FROM appointments 
+      WHERE DATE_FORMAT(date, '%Y-%m-%d') = ? AND status IN ('active', 'confirmed', 'accepted', 'visited', 'completed', 'no_show')
       ORDER BY doctor, time_slot, token_number
     `, [todayStr]) as any
     

@@ -124,6 +124,8 @@ export async function getAppointments() {
       created_at
     FROM appointments 
     ORDER BY 
+      date DESC,
+      created_at DESC,
       CASE status
         WHEN 'confirmed' THEN 1
         WHEN 'accepted' THEN 2
@@ -131,9 +133,7 @@ export async function getAppointments() {
         WHEN 'completed' THEN 4
         WHEN 'cancelled' THEN 5
         ELSE 6
-      END,
-      date DESC,
-      created_at DESC
+      END
   `)
   return rows
 }

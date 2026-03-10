@@ -269,6 +269,9 @@ function Dashboard() {
     await fetch(`${API_URL}/admin/appointments/${id}/no-show`, { method: 'POST' })
     showToast('Marked as Not Visited and message sent!')
     fetchTodayVisits()
+    if (calendarDoctor) {
+      fetchWeekSlots(calendarDoctor.id)
+    }
   } catch (error) {
     showToast('Error marking as not visited', 'error')
   }
@@ -978,7 +981,7 @@ function Dashboard() {
  <div>
  <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
  <button onClick={() => { setCalendarDoctor(null); setWeekSlots([]); setWeekAppointments([]); setDateRange({ fromDate: '', toDate: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
- ? Back to Doctors
+ ← Back to Doctors
  </button>
  <h3 style={{ margin: 0, fontSize: '20px', color: '#1e40af' }}> {calendarDoctor.name} - Schedule</h3>
  </div>
@@ -992,9 +995,9 @@ function Dashboard() {
  <label style={{ fontWeight: '600', color: '#475569', fontSize: '14px' }}> To:</label>
  <input type="date" value={dateRange.toDate} onChange={(e) => setDateRange({ ...dateRange, toDate: e.target.value })} style={{ padding: '8px 12px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
  </div>
- <button onClick={() => shiftWeek('prev')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>? Previous Week</button>
+ <button onClick={() => shiftWeek('prev')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>← Previous Week</button>
  <button onClick={initializeDateRange} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>This Week</button>
- <button onClick={() => shiftWeek('next')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Next Week ?</button>
+ <button onClick={() => shiftWeek('next')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Next Week →</button>
  </div>
  </div>
  {showCalendarSlotModal && (
@@ -1109,7 +1112,7 @@ function Dashboard() {
  {(() => {
  const bookedAppointments = weekAppointments.filter(apt => {
  if (apt.date !== dateStr) return false
- if (!['confirmed', 'pending', 'accepted', 'visited', 'completed', 'no_show'].includes(apt.status)) return false
+ if (!['confirmed', 'visited', 'no_show', 'doctor_not_available', 'completed'].includes(apt.status)) return false
  
  // Normalize times by removing :00, spaces, and [x/y]
  const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()

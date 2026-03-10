@@ -128,13 +128,13 @@ function TodayAppointments() {
                         <td style={{ padding: '16px 24px' }}>
                           <span style={{ 
                             padding: '6px 12px', 
-                            backgroundColor: booking.status === 'visited' ? '#d1fae5' : '#fef3c7', 
-                            color: booking.status === 'visited' ? '#065f46' : '#92400e', 
+                            backgroundColor: booking.status === 'visited' ? '#d1fae5' : booking.status === 'no_show' ? '#fee2e2' : '#fef3c7', 
+                            color: booking.status === 'visited' ? '#065f46' : booking.status === 'no_show' ? '#991b1b' : '#92400e', 
                             borderRadius: '6px', 
                             fontSize: '13px', 
                             fontWeight: '600' 
                           }}>
-                            {booking.status === 'visited' ? '✅ Visited' : '⏳ Pending'}
+                            {booking.status === 'visited' ? '✅ Visited' : booking.status === 'no_show' ? '❌ No Show' : '⏳ Pending'}
                           </span>
                         </td>
                         <td style={{ padding: '16px 24px', textAlign: 'center' }}>
