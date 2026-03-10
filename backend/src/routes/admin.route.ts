@@ -75,11 +75,12 @@ router.get('/today', async (req, res) => {
     
     const [rows] = await pool.query(`
       SELECT * FROM appointments 
-      WHERE DATE(date) = ? AND status IN ('confirmed', 'accepted', 'visited', 'completed')
+      WHERE DATE(date) = ? AND status IN ('active', 'confirmed', 'accepted', 'visited', 'completed', 'no_show')
       ORDER BY doctor, time_slot, token_number
     `, [todayStr]) as any
     
     console.log('Matching today visits:', rows.length)
+    console.log('Sample appointment:', rows[0])
     console.log('===========================\n')
     
     res.json({ appointments: rows })
@@ -153,6 +154,31 @@ router.post('/:id/visited', async (req, res) => {
     res.json({ success: true, message: 'Patient marked as visited', tokenNumber })
   } catch (error) {
     console.error('Error marking as visited:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Mark as not visited (no-show)
+router.post('/:id/no-show', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [appointment] = await pool.query('SELECT * FROM appointments WHERE id = ?', [id]) as any
+    if (!appointment[0]) {
+      return res.status(404).json({ error: 'Appointment not found' })
+    }
+
+    await pool.query('UPDATE appointments SET status = ? WHERE id = ?', ['no_show', id])
+    
+    const apt = appointment[0]
+    await sendText(
+      apt.phone,
+      `⚠️ Missed Appointment Notice\n\nHello ${apt.patient_name},\n\nYou missed your appointment today:\n👨⚕️ Doctor: ${apt.doctor}\n🕐 Time: ${apt.time_slot}\n\nThis appointment slot has now passed. If you still need medical consultation, please book a new appointment.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nThank you!`
+    )
+    
+    res.json({ success: true, message: 'Marked as no-show and message sent' })
+  } catch (error) {
+    console.error('Error marking as no-show:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -270,7 +296,7 @@ router.post('/doctors/:doctorId/slots', async (req, res) => {
   const { doctorId } = req.params
   const { startTime, endTime, capacity, date } = req.body
   await pool.query(
-    'INSERT INTO time_slots (doctor_id, start_time, end_time, capacity, date) VALUES (?, ?, ?, ?, STR_TO_DATE(?, "%Y-%m-%d"))',
+    'INSERT INTO time_slots (doctor_id, start_time, end_time, capacity, date) VALUES (?, ?, ?, ?, ?)',
     [doctorId, startTime, endTime, capacity, date || null]
   )
   res.json({ success: true, message: 'Time slot added' })
@@ -289,9 +315,104 @@ router.put('/slots/:id', async (req, res) => {
 
 // Delete time slot
 router.delete('/slots/:id', async (req, res) => {
-  const { id } = req.params
-  await pool.query('DELETE FROM time_slots WHERE id = ?', [id])
-  res.json({ success: true, message: 'Time slot deleted' })
+  try {
+    const { id } = req.params
+    
+    console.log('\n=== DELETING SLOT ===')
+    console.log('Slot ID:', id)
+    
+    // Get slot details first
+    const [slot] = await pool.query(
+      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
+      [id]
+    ) as any
+    
+    if (!slot[0]) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+    
+    const slotInfo = slot[0]
+    console.log('Slot Info:', slotInfo)
+    
+    // Format date properly
+    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
+    console.log('Formatted slot date:', slotDate)
+    
+    if (!slotDate) {
+      return res.status(400).json({ error: 'Invalid slot date' })
+    }
+    
+    // Format time for matching
+    const formatTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':')
+      const hour = parseInt(h || '0')
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const mins = m === '00' ? '' : `:${m}`
+      return `${hour12}${mins}${ampm}`
+    }
+    
+    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
+    console.log('Formatted slot time:', slotTime)
+    
+    // Find all appointments in this slot
+    const [appointments] = await pool.query(
+      `SELECT * FROM appointments 
+       WHERE doctor = ? AND status IN ('confirmed', 'accepted', 'pending')`,
+      [slotInfo.doctor_name]
+    ) as any
+    
+    // Filter by date manually to handle timezone issues
+    const dateFilteredAppointments = appointments.filter((apt: any) => {
+      const aptDate = new Date(apt.date).toISOString().split('T')[0]
+      console.log(`Comparing dates: apt=${aptDate} vs slot=${slotDate}`)
+      return aptDate === slotDate
+    })
+    
+    console.log('Found appointments:', appointments.length)
+    console.log('Date filtered appointments:', dateFilteredAppointments.length)
+    console.log('Appointments:', dateFilteredAppointments)
+    
+    // Filter appointments that match this time slot
+    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
+      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
+      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
+      console.log(`Comparing: "${aptTime}" === "${slotTimeNorm}"`)
+      return aptTime === slotTimeNorm
+    })
+    
+    console.log('Affected appointments:', affectedAppointments.length)
+    
+    // Cancel all affected appointments and notify patients
+    for (const apt of affectedAppointments) {
+      console.log(`Cancelling appointment ${apt.id} for ${apt.patient_name} (${apt.phone})`)
+      
+      await pool.query(
+        'UPDATE appointments SET status = ? WHERE id = ?',
+        ['cancelled_by_hospital', apt.id]
+      )
+      
+      await sendText(
+        apt.phone,
+        `❌ Appointment Cancelled by Hospital\n\nHello ${apt.patient_name},\n\nYour appointment has been cancelled by the hospital:\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nReason: Time slot removed by hospital\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nWe apologize for the inconvenience.`
+      )
+    }
+    
+    // Delete the time slot
+    await pool.query('DELETE FROM time_slots WHERE id = ?', [id])
+    
+    console.log('Slot deleted successfully')
+    console.log('===========================\n')
+    
+    res.json({ 
+      success: true, 
+      message: 'Time slot deleted', 
+      notifiedPatients: affectedAppointments.length 
+    })
+  } catch (error) {
+    console.error('Error deleting slot:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 export default router

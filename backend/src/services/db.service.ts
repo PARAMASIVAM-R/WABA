@@ -100,16 +100,41 @@ export async function getAllTimeSlotsByDoctor(doctorId: number) {
 
 export async function saveAppointment(phone: string, patientName: string, category: string, doctor: string, date: string, timeSlot: string, timeSlotId: number) {
   const [result] = await pool.query(
-    'INSERT INTO appointments (phone, patient_name, category, doctor, date, time_slot, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [phone, patientName, category, doctor, date, timeSlot, 'confirmed']
+    `INSERT INTO appointments (phone, patient_name, category, doctor, date, time_slot, status) VALUES (?, ?, ?, ?, '${date}', ?, ?)`,
+    [phone, patientName, category, doctor, timeSlot, 'confirmed']
   )
   
   console.log('💾 Appointment saved with confirmed status')
   return result
 }
 
+
 export async function getAppointments() {
-  const [rows] = await pool.query('SELECT * FROM appointments ORDER BY created_at DESC')
+  const [rows] = await pool.query(`
+    SELECT 
+      id,
+      phone,
+      patient_name,
+      category,
+      doctor,
+      DATE_FORMAT(date, '%Y-%m-%d') as date,
+      time_slot,
+      status,
+      token_number,
+      created_at
+    FROM appointments 
+    ORDER BY 
+      CASE status
+        WHEN 'confirmed' THEN 1
+        WHEN 'accepted' THEN 2
+        WHEN 'visited' THEN 3
+        WHEN 'completed' THEN 4
+        WHEN 'cancelled' THEN 5
+        ELSE 6
+      END,
+      date DESC,
+      created_at DESC
+  `)
   return rows
 }
 

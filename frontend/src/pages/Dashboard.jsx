@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useToast, useConfirm } from '../components/Toast'
 import TimePickerAMPM from '../components/TimePickerAMPM'
 
 const API_URL = 'http://localhost:3000'
@@ -37,6 +38,8 @@ function Dashboard() {
  const [showCalendarSlotModal, setShowCalendarSlotModal] = useState(false)
  const [calendarSlotForm, setCalendarSlotForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false, selectedDays: [] })
  const [editingCalendarSlot, setEditingCalendarSlot] = useState(null)
+ const { showToast, ToastContainer } = useToast()
+ const { showConfirm, ConfirmModal } = useConfirm()
  const [dateRange, setDateRange] = useState({ fromDate: '', toDate: '' })
 
  useEffect(() => {
@@ -187,10 +190,10 @@ function Dashboard() {
  const handleAccept = async (id) => {
  try {
  await fetch(`${API_URL}/admin/appointments/${id}/accept`, { method: 'POST' })
- alert('Appointment accepted!')
+ showToast('Appointment accepted!')
  fetchAppointments()
  } catch (error) {
- alert('Error accepting appointment')
+ showToast('Error accepting appointment', 'error')
  }
  }
 
@@ -203,10 +206,10 @@ function Dashboard() {
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ reason })
  })
- alert('Appointment rejected!')
+ showToast('Appointment rejected!')
  fetchAppointments()
  } catch (error) {
- alert('Error rejecting appointment')
+ showToast('Error rejecting appointment', 'error')
  }
  }
 
@@ -219,50 +222,76 @@ function Dashboard() {
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ newTime })
  })
- alert('Time slot updated!')
+ showToast('Time slot updated!')
  fetchAppointments()
  } catch (error) {
- alert('Error changing slot')
+ showToast('Error changing slot', 'error')
  }
  }
 
  const handleMarkVisited = async (id) => {
- if (!confirm('Mark this patient as visited and assign token?')) return
- try {
- const res = await fetch(`${API_URL}/admin/appointments/${id}/visited`, { method: 'POST' })
- const data = await res.json()
- if (data.success) {
- alert(`Patient marked as visited! Token Number: ${data.tokenNumber}`)
- if (activeTab === 'today') {
- fetchTodayVisits()
- } else {
- fetchAppointments()
- }
- } else {
- alert(data.error || 'Error marking as visited')
- }
- } catch (error) {
- alert('Error marking as visited')
- }
- }
+  if (!await showConfirm('Mark this patient as visited and assign token?')) return
+  try {
+    const res = await fetch(`${API_URL}/admin/appointments/${id}/visited`, { method: 'POST' })
+    const data = await res.json()
+    if (data.success) {
+      showToast(`Patient marked as visited! Token Number: ${data.tokenNumber}`)
+      if (activeTab === 'today') {
+        fetchTodayVisits()
+      } else {
+        fetchAppointments()
+      }
+    } else {
+      showToast(data.error || 'Error marking as visited', 'error')
+    }
+  } catch (error) {
+    showToast('Error marking as visited', 'error')
+  }
+}
 
  const handleMarkCompleted = async (id) => {
- if (!confirm('Mark checkup as completed?')) return
- try {
- await fetch(`${API_URL}/admin/appointments/${id}/completed`, { method: 'POST' })
- alert('Checkup marked as completed!')
- fetchTodayVisits()
- if (selectedDoctor) {
- fetchDoctorSlots(selectedDoctor.id)
- }
- } catch (error) {
- alert('Error marking as completed')
- }
- }
+  if (!await showConfirm('Mark checkup as completed?')) return
+  try {
+    await fetch(`${API_URL}/admin/appointments/${id}/completed`, { method: 'POST' })
+    showToast('Checkup marked as completed!')
+    fetchTodayVisits()
+    if (selectedDoctor) {
+      fetchDoctorSlots(selectedDoctor.id)
+    }
+  } catch (error) {
+    showToast('Error marking as completed', 'error')
+  }
+}
+
+  const handleMarkNoShow = async (id) => {
+  if (!await showConfirm('Mark this patient as Not Visited? A reschedule message will be sent.')) return
+  try {
+    await fetch(`${API_URL}/admin/appointments/${id}/no-show`, { method: 'POST' })
+    showToast('Marked as Not Visited and message sent!')
+    fetchTodayVisits()
+  } catch (error) {
+    showToast('Error marking as not visited', 'error')
+  }
+}
+
+  const isAppointmentPassed = (timeSlot) => {
+    const [, endTime] = timeSlot.split('-').map(t => t.trim())
+    const isPM = endTime.toLowerCase().includes('pm')
+    const isAM = endTime.toLowerCase().includes('am')
+    let [hours, minutes] = endTime.replace(/[apm\s]/gi, '').split(':').map(Number)
+    
+    if (isPM && hours !== 12) hours += 12
+    if (isAM && hours === 12) hours = 0
+    
+    const now = new Date()
+    const appointmentEnd = new Date()
+    appointmentEnd.setHours(hours, minutes || 0, 0, 0)
+    return now > appointmentEnd
+  }
 
  const handleSaveDoctor = async () => {
  if (!doctorForm.name || !doctorForm.categoryId) {
- alert('Please fill name and category')
+ showToast('Please fill name and category', 'error')
  return
  }
  try {
@@ -284,23 +313,24 @@ function Dashboard() {
  setDoctorForm({ name: '', categoryId: '' })
  fetchDoctors()
  } catch (error) {
- alert('Error saving doctor')
+ showToast('Error saving doctor', 'error')
  }
  }
 
  const handleDeleteDoctor = async (id) => {
- if (!confirm('Delete this doctor?')) return
+ if (!await showConfirm('⚠️ Delete this doctor? All associated time slots and patient appointments will be cancelled and patients will be notified.')) return
  try {
  await fetch(`${API_URL}/admin/appointments/doctors/${id}`, { method: 'DELETE' })
+ showToast('Doctor deleted successfully!')
  fetchDoctors()
  } catch (error) {
- alert('Error deleting doctor')
+ showToast('Error deleting doctor', 'error')
  }
  }
 
  const handleSaveSlot = async () => {
  if (!slotForm.startTime || !slotForm.endTime || !slotForm.capacity) {
- alert('Please fill all fields')
+ showToast('Please fill all fields', 'error')
  return
  }
  try {
@@ -322,29 +352,30 @@ function Dashboard() {
  setSlotForm({ startTime: '09:00', endTime: '17:00', capacity: '5' })
  fetchDoctorSlots(selectedDoctor.id)
  } catch (error) {
- alert('Error saving slot')
+ showToast('Error saving slot', 'error')
  }
  }
 
  const handleDeleteSlot = async (id) => {
- if (!confirm('Delete this time slot?')) return
+ if (!await showConfirm('⚠️ Delete this time slot? All patient appointments in this slot will be cancelled and patients will be notified.')) return
  try {
  await fetch(`${API_URL}/admin/appointments/slots/${id}`, { method: 'DELETE' })
+ showToast('Time slot deleted successfully!')
  if (calendarDoctor) {
  fetchWeekSlots(calendarDoctor.id)
  } else if (selectedDoctor) {
  fetchDoctorSlots(selectedDoctor.id)
  }
  } catch (error) {
- alert('Error deleting slot')
+ showToast('Error deleting slot', 'error')
  }
  }
 
  const handleCreateFollowup = async (e) => {
  e.preventDefault()
- if (!followupForm.phone) return alert('Phone required')
- if (followupForm.messageType === 'custom' && !followupForm.customMessage) return alert('Message required')
- if (followupForm.messageType === 'template' && !followupForm.templateName) return alert('Template required')
+ if (!followupForm.phone) return showToast('Phone required', 'error')
+ if (followupForm.messageType === 'custom' && !followupForm.customMessage) return showToast('Message required', 'error')
+ if (followupForm.messageType === 'template' && !followupForm.templateName) return showToast('Template required', 'error')
  try {
  await fetch(`${API_URL}/admin/followups`, {
  method: 'POST',
@@ -354,23 +385,23 @@ function Dashboard() {
  setFollowupForm({ phone: '', patientName: '', messageType: 'custom', templateName: '', customMessage: '' })
  fetchFollowups()
  } catch (error) {
- alert('Error creating follow-up')
+ showToast('Error creating follow-up', 'error')
  }
  }
 
  const handleSendFollowup = async (id) => {
- if (!confirm('Send now?')) return
+ if (!showConfirm('Send now?')) return
  try {
  const res = await fetch(`${API_URL}/admin/followups/${id}/send`, { method: 'POST' })
  const data = await res.json()
  if (data.success) {
- alert('Message sent successfully!')
+ showToast('Message sent successfully!')
  await fetchFollowups()
  } else {
  alert('Error: ' + (data.error || 'Failed to send'))
  }
  } catch (error) {
- alert('Error sending')
+ showToast('Error sending', 'error')
  console.error(error)
  }
  }
@@ -433,7 +464,7 @@ function Dashboard() {
 
  const handleSaveCalendarSlot = async () => {
  if (!calendarSlotForm.startTime || !calendarSlotForm.endTime || !calendarSlotForm.capacity) {
- alert('Please fill all fields')
+ showToast('Please fill all fields', 'error')
  return
  }
 
@@ -512,7 +543,7 @@ function Dashboard() {
  setCalendarSlotForm({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false, selectedDays: [] })
  fetchWeekSlots(calendarDoctor.id)
  } catch (error) {
- alert('Error saving slot')
+ showToast('Error saving slot', 'error')
  }
  }
 
@@ -629,8 +660,8 @@ function Dashboard() {
  <td style={{ padding: '16px', textAlign: 'left' }}> {visit.doctor}</td>
  <td style={{ padding: '16px', textAlign: 'left' }}> {visit.time_slot}</td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
- <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : visit.status === 'accepted' ? '#fef3c7' : '#dbeafe', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : visit.status === 'accepted' ? '#92400e' : '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
- {visit.status === 'completed' ? ' Completed' : visit.status === 'visited' ? ' Visited' : visit.status === 'accepted' ? ' Accepted' : ' Confirmed'}
+ <span style={{ padding: '6px 12px', backgroundColor: visit.status === 'completed' ? '#d1fae5' : visit.status === 'visited' ? '#e0e7ff' : visit.status === 'no_show' ? '#fee2e2' : visit.status === 'accepted' ? '#fef3c7' : '#dbeafe', color: visit.status === 'completed' ? '#065f46' : visit.status === 'visited' ? '#3730a3' : visit.status === 'no_show' ? '#991b1b' : visit.status === 'accepted' ? '#92400e' : '#1e40af', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+ {visit.status === 'completed' ? ' Completed' : visit.status === 'visited' ? ' Visited' : visit.status === 'no_show' ? ' Not Visited' : visit.status === 'accepted' ? ' Accepted' : ' Confirmed'}
  </span>
  </td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -638,10 +669,12 @@ function Dashboard() {
  {(visit.status === 'confirmed' || visit.status === 'accepted') && (
  <button onClick={() => handleMarkVisited(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Mark Visited</button>
  )}
+ {(visit.status === 'confirmed' || visit.status === 'accepted') && isAppointmentPassed(visit.time_slot) && (
+                        <button onClick={() => handleMarkNoShow(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Not Visited</button>)}
  {visit.status === 'visited' && (
  <button onClick={() => handleMarkCompleted(visit.id)} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Mark Completed</button>
  )}
- {(visit.status === 'confirmed' || visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed') && (
+ {(visit.status === 'confirmed' || visit.status === 'accepted' || visit.status === 'visited' || visit.status === 'completed' || visit.status === 'no_show') && (
  <button onClick={() => { setFollowupForm({ ...followupForm, phone: visit.phone, patientName: visit.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Follow-up</button>
  )}
  </div>
@@ -726,8 +759,8 @@ function Dashboard() {
  )}
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
- <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
- {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : ' Pending'}
+ <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'no_show' ? '#fee2e2' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled_by_hospital' ? '#fef3c7' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'no_show' ? '#991b1b' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled_by_hospital' ? '#92400e' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+ {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'no_show' ? ' Not Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled_by_hospital' ? ' Cancelled by Hospital' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : ' Pending'}
  </span>
  </td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -739,7 +772,7 @@ function Dashboard() {
  <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Change Slot</button>
  </>
  )}
- {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'cancelled' || apt.status === 'rejected') && (
+ {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'no_show' || apt.status === 'cancelled' || apt.status === 'rejected') && (
  <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Follow-up</button>
  )}
  </div>
@@ -905,7 +938,7 @@ function Dashboard() {
  <div>
  <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
  <button onClick={() => { setCalendarDoctor(null); setWeekSlots([]); setWeekAppointments([]); setDateRange({ fromDate: '', toDate: '' }) }} style={{ padding: '10px 20px', backgroundColor: '#64748b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
- ← Back to Doctors
+ ? Back to Doctors
  </button>
  <h3 style={{ margin: 0, fontSize: '20px', color: '#1e40af' }}> {calendarDoctor.name} - Schedule</h3>
  </div>
@@ -919,9 +952,9 @@ function Dashboard() {
  <label style={{ fontWeight: '600', color: '#475569', fontSize: '14px' }}> To:</label>
  <input type="date" value={dateRange.toDate} onChange={(e) => setDateRange({ ...dateRange, toDate: e.target.value })} style={{ padding: '8px 12px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
  </div>
- <button onClick={() => shiftWeek('prev')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>← Previous Week</button>
+ <button onClick={() => shiftWeek('prev')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>? Previous Week</button>
  <button onClick={initializeDateRange} style={{ padding: '8px 16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>This Week</button>
- <button onClick={() => shiftWeek('next')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Next Week →</button>
+ <button onClick={() => shiftWeek('next')} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Next Week ?</button>
  </div>
  </div>
  {showCalendarSlotModal && (
@@ -1091,13 +1124,13 @@ function Dashboard() {
  </div>
  ) : null}
  </div>
+ <ToastContainer />
+<ConfirmModal />
  </div>
  )
 }
 
 export default Dashboard
-
-
 
 
 
