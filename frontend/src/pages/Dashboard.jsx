@@ -1109,7 +1109,7 @@ function Dashboard() {
  {(() => {
  const bookedAppointments = weekAppointments.filter(apt => {
  if (apt.date !== dateStr) return false
- if (!['confirmed', 'pending', 'accepted', 'visited', 'completed', 'cancelled_by_hospital', 'doctor_not_available'].includes(apt.status)) return false
+ if (!['confirmed', 'pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
  
  // Normalize times by removing :00, spaces, and [x/y]
  const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
