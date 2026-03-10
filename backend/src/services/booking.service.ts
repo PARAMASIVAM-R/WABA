@@ -415,7 +415,7 @@ export async function processBookingMessage(message: {
         ) as any
         
         const selectedApt = appointments2.find((apt: any) => 
-          message.text.includes(apt.doctor) || apt.id.toString() === message.text
+          apt.id.toString() === message.text || message.text.includes(apt.patient_name)
         )
         
         if (!selectedApt) {
@@ -534,7 +534,7 @@ export async function processBookingMessage(message: {
         ) as any
         
         const selectedAptR = appointmentsR2.find((apt: any) => 
-          message.text.includes(apt.doctor) || apt.id.toString() === message.text
+          apt.id.toString() === message.text || message.text.includes(apt.patient_name)
         )
         
         if (!selectedAptR) {
