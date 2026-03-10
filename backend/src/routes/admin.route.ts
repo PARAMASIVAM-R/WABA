@@ -39,14 +39,14 @@ router.get('/doctors/:doctorId/slots', async (req, res) => {
   }
   
   const [timeSlots] = await pool.query(
-    'SELECT id, doctor_id, start_time, end_time, capacity, DATE_FORMAT(date, "%Y-%m-%d") as date, created_at FROM time_slots WHERE doctor_id = ? ORDER BY date, start_time',
+    'SELECT id, doctor_id, start_time, end_time, capacity, DATE_FORMAT(date, "%Y-%m-%d") as date, COALESCE(is_available, 1) as is_available, created_at FROM time_slots WHERE doctor_id = ? ORDER BY date, start_time',
     [doctorId]
   ) as any
   
   const [appointments] = await pool.query(
     `SELECT id, patient_name, phone, DATE_FORMAT(date, '%Y-%m-%d') as date, time_slot, status, token_number, created_at
      FROM appointments 
-     WHERE doctor = ?
+     WHERE doctor = ? AND status IN ('confirmed', 'pending', 'accepted', 'visited', 'completed', 'cancelled_by_hospital', 'doctor_not_available')
      ORDER BY date DESC, time_slot, created_at`,
     [doctor[0].name]
   ) as any
@@ -313,6 +313,153 @@ router.put('/slots/:id', async (req, res) => {
   res.json({ success: true, message: 'Time slot updated' })
 })
 
+// Mark slot as not available
+router.post('/slots/:id/not-available', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [slot] = await pool.query(
+      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
+      [id]
+    ) as any
+    
+    if (!slot[0]) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+    
+    const slotInfo = slot[0]
+    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
+    
+    if (!slotDate) {
+      return res.status(400).json({ error: 'Invalid slot date' })
+    }
+    
+    // Mark slot as unavailable
+    await pool.query('UPDATE time_slots SET is_available = 0 WHERE id = ?', [id])
+    
+    const formatTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':')
+      const hour = parseInt(h || '0')
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const mins = m === '00' ? '' : `:${m}`
+      return `${hour12}${mins}${ampm}`
+    }
+    
+    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
+    
+    const [appointments] = await pool.query(
+      `SELECT * FROM appointments 
+       WHERE doctor = ? AND status IN ('confirmed', 'accepted', 'pending')`,
+      [slotInfo.doctor_name]
+    ) as any
+    
+    const dateFilteredAppointments = appointments.filter((apt: any) => {
+      const aptDate = new Date(apt.date).toISOString().split('T')[0]
+      return aptDate === slotDate
+    })
+    
+    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
+      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
+      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
+      return aptTime === slotTimeNorm
+    })
+    
+    for (const apt of affectedAppointments) {
+      await pool.query(
+        'UPDATE appointments SET status = ? WHERE id = ?',
+        ['doctor_not_available', apt.id]
+      )
+      
+      await sendText(
+        apt.phone,
+        `⚠️ Doctor Not Available\n\nHello ${apt.patient_name},\n\nUnfortunately, the doctor is not available for your appointment:\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nPlease book another slot at your convenience.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nWe apologize for the inconvenience. Thank you for your understanding! 🙏`
+      )
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Patients notified about doctor unavailability', 
+      notifiedPatients: affectedAppointments.length 
+    })
+  } catch (error) {
+    console.error('Error marking slot as not available:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Mark slot as not available
+router.post('/slots/:id/not-available', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const [slot] = await pool.query(
+      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
+      [id]
+    ) as any
+    
+    if (!slot[0]) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+    
+    const slotInfo = slot[0]
+    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
+    
+    if (!slotDate) {
+      return res.status(400).json({ error: 'Invalid slot date' })
+    }
+    
+    const formatTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':')
+      const hour = parseInt(h || '0')
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const mins = m === '00' ? '' : `:${m}`
+      return `${hour12}${mins}${ampm}`
+    }
+    
+    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
+    
+    const [appointments] = await pool.query(
+      `SELECT * FROM appointments 
+       WHERE doctor = ? AND status IN ('confirmed', 'accepted', 'pending')`,
+      [slotInfo.doctor_name]
+    ) as any
+    
+    const dateFilteredAppointments = appointments.filter((apt: any) => {
+      const aptDate = new Date(apt.date).toISOString().split('T')[0]
+      return aptDate === slotDate
+    })
+    
+    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
+      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
+      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
+      return aptTime === slotTimeNorm
+    })
+    
+    for (const apt of affectedAppointments) {
+      await pool.query(
+        'UPDATE appointments SET status = ? WHERE id = ?',
+        ['doctor_not_available', apt.id]
+      )
+      
+      await sendText(
+        apt.phone,
+        `⚠️ Doctor Not Available\n\nHello ${apt.patient_name},\n\nUnfortunately, the doctor is not available for your appointment:\n👨‍⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nPlease book another slot at your convenience.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nWe apologize for the inconvenience. Thank you for your understanding! 🙏`
+      )
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Patients notified about doctor unavailability', 
+      notifiedPatients: affectedAppointments.length 
+    })
+  } catch (error) {
+    console.error('Error marking slot as not available:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // Delete time slot
 router.delete('/slots/:id', async (req, res) => {
   try {
@@ -411,105 +558,6 @@ router.delete('/slots/:id', async (req, res) => {
     })
   } catch (error) {
     console.error('Error deleting slot:', error)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-})
-
-// Mark slot as not available
-router.post('/slots/:id/not-available', async (req, res) => {
-  try {
-    const { id } = req.params
-    
-    console.log('\n=== MARKING SLOT AS NOT AVAILABLE ===')
-    console.log('Slot ID:', id)
-    
-    // Get slot details first
-    const [slot] = await pool.query(
-      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
-      [id]
-    ) as any
-    
-    if (!slot[0]) {
-      return res.status(404).json({ error: 'Time slot not found' })
-    }
-    
-    const slotInfo = slot[0]
-    console.log('Slot Info:', slotInfo)
-    
-    // Format date properly
-    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
-    console.log('Formatted slot date:', slotDate)
-    
-    if (!slotDate) {
-      return res.status(400).json({ error: 'Invalid slot date' })
-    }
-    
-    // Format time for matching
-    const formatTime = (timeStr: string) => {
-      const [h, m] = timeStr.split(':')
-      const hour = parseInt(h || '0')
-      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
-      const ampm = hour >= 12 ? 'PM' : 'AM'
-      const mins = m === '00' ? '' : `:${m}`
-      return `${hour12}${mins}${ampm}`
-    }
-    
-    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
-    console.log('Formatted slot time:', slotTime)
-    
-    // Find all appointments in this slot
-    const [appointments] = await pool.query(
-      `SELECT * FROM appointments 
-       WHERE doctor = ? AND status IN ('confirmed', 'accepted', 'pending')`,
-      [slotInfo.doctor_name]
-    ) as any
-    
-    // Filter by date manually to handle timezone issues
-    const dateFilteredAppointments = appointments.filter((apt: any) => {
-      const aptDate = new Date(apt.date).toISOString().split('T')[0]
-      console.log(`Comparing dates: apt=${aptDate} vs slot=${slotDate}`)
-      return aptDate === slotDate
-    })
-    
-    console.log('Found appointments:', appointments.length)
-    console.log('Date filtered appointments:', dateFilteredAppointments.length)
-    console.log('Appointments:', dateFilteredAppointments)
-    
-    // Filter appointments that match this time slot
-    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
-      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
-      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
-      console.log(`Comparing: "${aptTime}" === "${slotTimeNorm}"`)
-      return aptTime === slotTimeNorm
-    })
-    
-    console.log('Affected appointments:', affectedAppointments.length)
-    
-    // Update all affected appointments status and notify patients
-    for (const apt of affectedAppointments) {
-      console.log(`Marking appointment ${apt.id} for ${apt.patient_name} (${apt.phone}) as doctor not available`)
-      
-      await pool.query(
-        'UPDATE appointments SET status = ? WHERE id = ?',
-        ['doctor_not_available', apt.id]
-      )
-      
-      await sendText(
-        apt.phone,
-        `⚠️ Doctor Not Available\n\nHello ${apt.patient_name},\n\nYour doctor is not available for the scheduled appointment:\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nPlease book another available slot.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nWe apologize for the inconvenience.`
-      )
-    }
-    
-    console.log('Slot marked as not available successfully')
-    console.log('=======================================\n')
-    
-    res.json({ 
-      success: true, 
-      message: 'Slot marked as not available', 
-      notifiedPatients: affectedAppointments.length 
-    })
-  } catch (error) {
-    console.error('Error marking slot as not available:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

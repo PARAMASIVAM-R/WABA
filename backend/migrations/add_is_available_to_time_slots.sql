@@ -1,0 +1,1 @@
+ALTER TABLE time_slots ADD COLUMN is_available TINYINT(1) DEFAULT 1;

@@ -371,15 +371,20 @@ function Dashboard() {
  }
  }
 
- const handleMarkSlotNotAvailable = async (id) => {
- if (!await showConfirm('⚠️ Mark this slot as Not Available? All patients in this slot will be notified that the doctor is not available and they need to book another slot.')) return
+ const handleSlotNotAvailable = async (id) => {
+ if (!await showConfirm('⚠️ Mark doctor as not available for this slot? All patients will be notified to book another slot.')) return
  try {
- await fetch(`${API_URL}/admin/appointments/slots/${id}/not-available`, { method: 'POST' })
- showToast('Slot marked as not available! Patients have been notified.')
+ const res = await fetch(`${API_URL}/admin/appointments/slots/${id}/not-available`, { method: 'POST' })
+ const data = await res.json()
+ if (data.success) {
+ showToast(`${data.notifiedPatients} patients notified about doctor unavailability!`)
  if (calendarDoctor) {
  fetchWeekSlots(calendarDoctor.id)
  } else if (selectedDoctor) {
  fetchDoctorSlots(selectedDoctor.id)
+ }
+ } else {
+ showToast('Error marking slot as not available', 'error')
  }
  } catch (error) {
  showToast('Error marking slot as not available', 'error')
@@ -722,11 +727,7 @@ function Dashboard() {
  </div>
  <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
  <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}> Cancelled</div>
- <div style={{ fontSize: '32px', fontWeight: '700', color: '#ef4444' }}>{appointments.filter(a => a.status === 'cancelled').length}</div>
- </div>
- <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
- <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}> Doctor Not Available</div>
- <div style={{ fontSize: '32px', fontWeight: '700', color: '#f97316' }}>{appointments.filter(a => a.status === 'doctor_not_available').length}</div>
+ <div style={{ fontSize: '32px', fontWeight: '700', color: '#ef4444' }}>{appointments.filter(a => a.status === 'cancelled' || a.status === 'cancelled_by_hospital' || a.status === 'doctor_not_available').length}</div>
  </div>
  </div>
  <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
@@ -778,8 +779,8 @@ function Dashboard() {
  )}
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
- <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'no_show' ? '#fee2e2' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled_by_hospital' ? '#fef3c7' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : apt.status === 'doctor_not_available' ? '#fed7aa' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'no_show' ? '#991b1b' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled_by_hospital' ? '#92400e' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : apt.status === 'doctor_not_available' ? '#9a3412' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
- {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'no_show' ? ' Not Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled_by_hospital' ? ' Cancelled by Hospital' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : apt.status === 'doctor_not_available' ? ' Doctor Not Available' : ' Pending'}
+ <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'no_show' ? '#fee2e2' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled_by_hospital' ? '#fef3c7' : apt.status === 'doctor_not_available' ? '#fef3c7' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'no_show' ? '#991b1b' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled_by_hospital' ? '#92400e' : apt.status === 'doctor_not_available' ? '#92400e' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+ {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'no_show' ? ' Not Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled_by_hospital' ? ' Cancelled by Hospital' : apt.status === 'doctor_not_available' ? ' Doctor Not Available' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : ' Pending'}
  </span>
  </td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -791,7 +792,7 @@ function Dashboard() {
  <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Change Slot</button>
  </>
  )}
- {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'no_show' || apt.status === 'cancelled' || apt.status === 'rejected' || apt.status === 'doctor_not_available' || apt.status === 'cancelled_by_hospital') && (
+ {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'no_show' || apt.status === 'cancelled' || apt.status === 'cancelled_by_hospital' || apt.status === 'doctor_not_available' || apt.status === 'rejected') && (
  <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Follow-up</button>
  )}
  </div>
@@ -1059,7 +1060,7 @@ function Dashboard() {
  </tr>
  ) : (
  daySlots.map((slot, slotIdx) => (
- <tr key={`${dateStr}-${slot.id}`} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+ <tr key={`${dateStr}-${slot.id}`} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', opacity: slot.is_available === 0 ? 0.6 : 1 }}>
  {slotIdx === 0 && (
  <td rowSpan={daySlots.length} style={{ padding: '16px', textAlign: 'left', fontWeight: '600', borderRight: '1px solid #e2e8f0' }}>
  {dateDisplay}<br/>
@@ -1070,19 +1071,21 @@ function Dashboard() {
  </button>
  </td>
  )}
- <td style={{ padding: '16px', textAlign: 'left' }}>{formatTime12Hour(slot.start_time)} - {formatTime12Hour(slot.end_time)}</td>
+ <td style={{ padding: '16px', textAlign: 'left' }}>{formatTime12Hour(slot.start_time)} - {formatTime12Hour(slot.end_time)}{slot.is_available === 0 && <span style={{ color: '#ef4444', fontSize: '11px', fontWeight: '600', marginLeft: '8px' }}>(Not Available)</span>}</td>
  <td style={{ padding: '16px', textAlign: 'center', fontWeight: '600' }}>{slot.capacity}</td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
- <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false, selectedDays: [] }); setShowCalendarSlotModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', marginRight: '6px' }}>Edit</button>
- <button onClick={() => handleMarkSlotNotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', marginRight: '6px' }}>Not Available</button>
- <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Delete</button>
+ <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+ <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false, selectedDays: [] }); setShowCalendarSlotModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Edit</button>
+ {slot.is_available !== 0 && <button onClick={() => handleSlotNotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Not Available</button>}
+ <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Delete</button>
+ </div>
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
  {(() => {
  const bookedAppointments = weekAppointments.filter(apt => {
  if (apt.date !== dateStr) return false
- if (!['confirmed', 'pending', 'accepted', 'visited', 'completed'].includes(apt.status)) return false
+ if (!['confirmed', 'pending', 'accepted', 'visited', 'completed', 'cancelled_by_hospital', 'doctor_not_available'].includes(apt.status)) return false
  
  // Normalize times by removing :00, spaces, and [x/y]
  const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/:00/g, '').replace(/\s+/g, '').toUpperCase()
@@ -1103,15 +1106,15 @@ function Dashboard() {
  <div key={seatIdx} style={{ 
  width: '80px', 
  height: '60px', 
- border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : '#a78bfa') : '#cbd5e1'), 
+ border: '2px solid ' + (isBooked ? (aptForSeat.status === 'completed' ? '#10b981' : aptForSeat.status === 'visited' ? '#6366f1' : aptForSeat.status === 'accepted' ? '#f59e0b' : aptForSeat.status === 'doctor_not_available' ? '#ef4444' : aptForSeat.status === 'cancelled_by_hospital' ? '#ef4444' : '#a78bfa') : '#cbd5e1'), 
  borderRadius: '6px', 
  display: 'flex', 
  flexDirection: 'column',
  alignItems: 'center', 
  justifyContent: 'center', 
- backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : '#ede9fe') : '#f1f5f9', 
+ backgroundColor: isBooked ? (aptForSeat.status === 'completed' ? '#d1fae5' : aptForSeat.status === 'visited' ? '#e0e7ff' : aptForSeat.status === 'accepted' ? '#fef3c7' : aptForSeat.status === 'doctor_not_available' ? '#fee2e2' : aptForSeat.status === 'cancelled_by_hospital' ? '#fee2e2' : '#ede9fe') : '#f1f5f9', 
  fontSize: '11px', 
- color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#6b21a8') : '#64748b',
+ color: isBooked ? (aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#6b21a8') : '#64748b',
  padding: '4px',
  fontWeight: isBooked ? '600' : '400'
  }}>
@@ -1119,8 +1122,8 @@ function Dashboard() {
  <>
  <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
  <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
- <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : '#8b5cf6', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
- {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : 'Pending'}
+ <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#8b5cf6', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
+ {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Pending'}
  </div>
  </>
  ) : (
@@ -1135,7 +1138,7 @@ function Dashboard() {
  </tr>
  ))
  )
- })}
+  })}
  </tbody>
  </table>
  </div>
