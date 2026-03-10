@@ -1002,49 +1002,67 @@ function Dashboard() {
  </div>
  {showCalendarSlotModal && (
  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
- <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '500px' }}>
- <h3 style={{ margin: '0 0 24px 0' }}>{editingCalendarSlot ? 'Edit' : 'Add'} Time Slot</h3>
- <TimePickerAMPM label=" Start Time" value={calendarSlotForm.startTime} onChange={(val) => setCalendarSlotForm({ ...calendarSlotForm, startTime: val })} />
- <TimePickerAMPM label=" End Time" value={calendarSlotForm.endTime} onChange={(val) => setCalendarSlotForm({ ...calendarSlotForm, endTime: val })} />
- <div style={{ marginBottom: '16px' }}>
- <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}> Capacity (patients)</label>
- <input type="number" min="1" max="50" value={calendarSlotForm.capacity} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, capacity: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
- </div>
+ <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '16px', width: '600px', maxHeight: '90vh', overflow: 'auto' }}>
+ <h3 style={{ margin: '0 0 24px 0', textAlign: 'center' }}>{editingCalendarSlot ? 'Edit' : 'Add'} Time Slot</h3>
+ 
+ {/* Quick Templates */}
  {!editingCalendarSlot && (
- <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
- <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Select Days:</label>
+ <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+ <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Quick Templates:</label>
+ <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, startTime: '09:00', endTime: '13:00' })} style={{ padding: '12px', backgroundColor: '#e0f2fe', border: '2px solid #0284c7', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#0284c7' }}>Morning (9AM-1PM)</button>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, startTime: '14:00', endTime: '18:00' })} style={{ padding: '12px', backgroundColor: '#ecfdf5', border: '2px solid #059669', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#059669' }}>Afternoon (2PM-6PM)</button>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, startTime: '18:00', endTime: '21:00' })} style={{ padding: '12px', backgroundColor: '#fef3c7', border: '2px solid #d97706', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#d97706' }}>Evening (6PM-9PM)</button>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, startTime: '09:00', endTime: '18:00' })} style={{ padding: '12px', backgroundColor: '#f3e8ff', border: '2px solid #7c3aed', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#7c3aed' }}>Full Day (9AM-6PM)</button>
+ </div>
+ </div>
+ )}
+ 
+ {/* Time Selection */}
+ <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+ <div>
+ <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>Start Time</label>
+ <input type="time" value={calendarSlotForm.startTime} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, startTime: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
+ </div>
+ <div>
+ <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>End Time</label>
+ <input type="time" value={calendarSlotForm.endTime} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, endTime: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }} />
+ </div>
+ </div>
+ 
+ {/* Capacity Selection */}
+ <div style={{ marginBottom: '20px' }}>
+ <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#475569', fontSize: '14px' }}>Patient Capacity:</label>
  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
- {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
- <button
- key={idx}
- type="button"
- onClick={() => {
- const days = calendarSlotForm.selectedDays.includes(idx)
- ? calendarSlotForm.selectedDays.filter(d => d !== idx)
- : [...calendarSlotForm.selectedDays, idx]
+ {[5, 10, 15, 20, 25, 30].map(cap => (
+ <button key={cap} type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, capacity: cap.toString() })} style={{ padding: '10px 16px', backgroundColor: calendarSlotForm.capacity === cap.toString() ? '#3b82f6' : '#f1f5f9', color: calendarSlotForm.capacity === cap.toString() ? 'white' : '#64748b', border: '2px solid ' + (calendarSlotForm.capacity === cap.toString() ? '#3b82f6' : '#e2e8f0'), borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>{cap} patients</button>
+ ))}
+ </div>
+ <input type="number" min="1" max="100" value={calendarSlotForm.capacity} onChange={(e) => setCalendarSlotForm({ ...calendarSlotForm, capacity: e.target.value })} placeholder="Custom" style={{ width: '120px', padding: '8px 12px', border: '2px solid #e2e8f0', borderRadius: '6px', fontSize: '14px', marginTop: '8px' }} />
+ </div>
+ 
+ {/* Day Selection */}
+ {!editingCalendarSlot && (
+ <div style={{ marginBottom: '20px' }}>
+ <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Select Days:</label>
+ <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, selectedDays: [1,2,3,4,5] })} style={{ padding: '8px 16px', backgroundColor: '#dbeafe', color: '#1e40af', border: '2px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Weekdays</button>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, selectedDays: [0,6] })} style={{ padding: '8px 16px', backgroundColor: '#fef3c7', color: '#d97706', border: '2px solid #f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Weekend</button>
+ <button type="button" onClick={() => setCalendarSlotForm({ ...calendarSlotForm, selectedDays: [0,1,2,3,4,5,6] })} style={{ padding: '8px 16px', backgroundColor: '#d1fae5', color: '#065f46', border: '2px solid #10b981', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>All Days</button>
+ </div>
+ <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+ {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+ <button key={idx} type="button" onClick={() => {
+ const days = calendarSlotForm.selectedDays.includes(idx) ? calendarSlotForm.selectedDays.filter(d => d !== idx) : [...calendarSlotForm.selectedDays, idx]
  setCalendarSlotForm({ ...calendarSlotForm, selectedDays: days })
- }}
- style={{
- width: '40px',
- height: '40px',
- borderRadius: '50%',
- border: '2px solid ' + (calendarSlotForm.selectedDays.includes(idx) ? '#3b82f6' : '#cbd5e1'),
- backgroundColor: calendarSlotForm.selectedDays.includes(idx) ? '#3b82f6' : 'white',
- color: calendarSlotForm.selectedDays.includes(idx) ? 'white' : '#64748b',
- cursor: 'pointer',
- fontWeight: '600',
- fontSize: '14px'
- }}
- >
- {day}
- </button>
+ }} style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid ' + (calendarSlotForm.selectedDays.includes(idx) ? '#3b82f6' : '#cbd5e1'), backgroundColor: calendarSlotForm.selectedDays.includes(idx) ? '#3b82f6' : 'white', color: calendarSlotForm.selectedDays.includes(idx) ? 'white' : '#64748b', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>{day}</button>
  ))}
  </div>
  </div>
  )}
  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
- <button onClick={() => { setShowCalendarSlotModal(false); setEditingCalendarSlot(null); setCalendarSlotForm({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false, selectedDays: [] }) }} style={{ padding: '10px 20px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
- <button onClick={handleSaveCalendarSlot} style={{ padding: '10px 20px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>Save</button>
+ <button onClick={() => { setShowCalendarSlotModal(false); setEditingCalendarSlot(null); setCalendarSlotForm({ date: '', startTime: '09:00', endTime: '17:00', capacity: '5', applyToAll: false, selectedDays: [] }) }} style={{ padding: '12px 24px', backgroundColor: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+ <button onClick={handleSaveCalendarSlot} style={{ padding: '12px 24px', backgroundColor: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Save Slot</button>
  </div>
  </div>
  </div>
@@ -1150,7 +1168,7 @@ function Dashboard() {
  <div style={{ fontSize: '10px', fontWeight: '700' }}>#{seatIdx + 1}</div>
  <div style={{ fontSize: '10px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{aptForSeat.patient_name}</div>
  <div style={{ fontSize: '9px', padding: '2px 4px', backgroundColor: aptForSeat.status === 'completed' ? '#065f46' : aptForSeat.status === 'visited' ? '#3730a3' : aptForSeat.status === 'accepted' ? '#92400e' : aptForSeat.status === 'no_show' ? '#991b1b' : aptForSeat.status === 'doctor_not_available' ? '#991b1b' : aptForSeat.status === 'cancelled_by_hospital' ? '#991b1b' : '#1e40af', color: 'white', borderRadius: '3px', marginTop: '2px' }}>
- {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'no_show' ? 'No Show' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Confirmed'}
+ {aptForSeat.status === 'completed' ? 'Completed' : aptForSeat.status === 'visited' ? 'Visited' : aptForSeat.status === 'accepted' ? 'Accepted' : aptForSeat.status === 'no_show' ? 'Not Visited' : aptForSeat.status === 'doctor_not_available' ? 'Dr N/A' : aptForSeat.status === 'cancelled_by_hospital' ? 'Cancelled' : 'Confirmed'}
  </div>
  </>
  ) : (
