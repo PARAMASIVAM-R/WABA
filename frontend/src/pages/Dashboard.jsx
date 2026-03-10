@@ -371,6 +371,21 @@ function Dashboard() {
  }
  }
 
+ const handleMarkSlotNotAvailable = async (id) => {
+ if (!await showConfirm('⚠️ Mark this slot as Not Available? All patients in this slot will be notified that the doctor is not available and they need to book another slot.')) return
+ try {
+ await fetch(`${API_URL}/admin/appointments/slots/${id}/not-available`, { method: 'POST' })
+ showToast('Slot marked as not available! Patients have been notified.')
+ if (calendarDoctor) {
+ fetchWeekSlots(calendarDoctor.id)
+ } else if (selectedDoctor) {
+ fetchDoctorSlots(selectedDoctor.id)
+ }
+ } catch (error) {
+ showToast('Error marking slot as not available', 'error')
+ }
+ }
+
  const handleCreateFollowup = async (e) => {
  e.preventDefault()
  if (!followupForm.phone) return showToast('Phone required', 'error')
@@ -709,6 +724,10 @@ function Dashboard() {
  <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}> Cancelled</div>
  <div style={{ fontSize: '32px', fontWeight: '700', color: '#ef4444' }}>{appointments.filter(a => a.status === 'cancelled').length}</div>
  </div>
+ <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+ <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}> Doctor Not Available</div>
+ <div style={{ fontSize: '32px', fontWeight: '700', color: '#f97316' }}>{appointments.filter(a => a.status === 'doctor_not_available').length}</div>
+ </div>
  </div>
  <div style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -759,8 +778,8 @@ function Dashboard() {
  )}
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>
- <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'no_show' ? '#fee2e2' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled_by_hospital' ? '#fef3c7' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'no_show' ? '#991b1b' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled_by_hospital' ? '#92400e' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
- {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'no_show' ? ' Not Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled_by_hospital' ? ' Cancelled by Hospital' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : ' Pending'}
+ <span style={{ padding: '6px 12px', backgroundColor: apt.status === 'completed' ? '#d1fae5' : apt.status === 'visited' ? '#e0e7ff' : apt.status === 'no_show' ? '#fee2e2' : apt.status === 'accepted' ? '#dbeafe' : apt.status === 'confirmed' ? '#dbeafe' : apt.status === 'cancelled_by_hospital' ? '#fef3c7' : apt.status === 'cancelled' ? '#fee2e2' : apt.status === 'rejected' ? '#fee2e2' : apt.status === 'doctor_not_available' ? '#fed7aa' : '#fef3c7', color: apt.status === 'completed' ? '#065f46' : apt.status === 'visited' ? '#3730a3' : apt.status === 'no_show' ? '#991b1b' : apt.status === 'accepted' ? '#1e40af' : apt.status === 'confirmed' ? '#1e40af' : apt.status === 'cancelled_by_hospital' ? '#92400e' : apt.status === 'cancelled' ? '#991b1b' : apt.status === 'rejected' ? '#991b1b' : apt.status === 'doctor_not_available' ? '#9a3412' : '#92400e', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+ {apt.status === 'completed' ? ' Completed' : apt.status === 'visited' ? ' Visited' : apt.status === 'no_show' ? ' Not Visited' : apt.status === 'accepted' ? ' Accepted' : apt.status === 'confirmed' ? ' Confirmed' : apt.status === 'cancelled_by_hospital' ? ' Cancelled by Hospital' : apt.status === 'cancelled' ? ' Cancelled' : apt.status === 'rejected' ? ' Rejected' : apt.status === 'doctor_not_available' ? ' Doctor Not Available' : ' Pending'}
  </span>
  </td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
@@ -772,7 +791,7 @@ function Dashboard() {
  <button onClick={() => handleChangeSlot(apt)} style={{ padding: '8px 16px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Change Slot</button>
  </>
  )}
- {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'no_show' || apt.status === 'cancelled' || apt.status === 'rejected') && (
+ {(apt.status === 'confirmed' || apt.status === 'accepted' || apt.status === 'visited' || apt.status === 'completed' || apt.status === 'no_show' || apt.status === 'cancelled' || apt.status === 'rejected' || apt.status === 'doctor_not_available' || apt.status === 'cancelled_by_hospital') && (
  <button onClick={() => { setFollowupForm({ ...followupForm, phone: apt.phone, patientName: apt.patient_name }); setActiveTab('followups') }} style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}> Follow-up</button>
  )}
  </div>
@@ -1055,6 +1074,7 @@ function Dashboard() {
  <td style={{ padding: '16px', textAlign: 'center', fontWeight: '600' }}>{slot.capacity}</td>
  <td style={{ padding: '16px', textAlign: 'center' }}>
  <button onClick={() => { setEditingCalendarSlot(slot); setCalendarSlotForm({ date: '', startTime: slot.start_time, endTime: slot.end_time, capacity: slot.capacity.toString(), applyToAll: false, selectedDays: [] }); setShowCalendarSlotModal(true) }} style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', marginRight: '6px' }}>Edit</button>
+ <button onClick={() => handleMarkSlotNotAvailable(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', marginRight: '6px' }}>Not Available</button>
  <button onClick={() => handleDeleteSlot(slot.id)} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Delete</button>
  </td>
  <td style={{ padding: '16px', textAlign: 'left' }}>

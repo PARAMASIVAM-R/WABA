@@ -415,4 +415,103 @@ router.delete('/slots/:id', async (req, res) => {
   }
 })
 
+// Mark slot as not available
+router.post('/slots/:id/not-available', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    console.log('\n=== MARKING SLOT AS NOT AVAILABLE ===')
+    console.log('Slot ID:', id)
+    
+    // Get slot details first
+    const [slot] = await pool.query(
+      'SELECT ts.*, d.name as doctor_name FROM time_slots ts JOIN doctors d ON ts.doctor_id = d.id WHERE ts.id = ?',
+      [id]
+    ) as any
+    
+    if (!slot[0]) {
+      return res.status(404).json({ error: 'Time slot not found' })
+    }
+    
+    const slotInfo = slot[0]
+    console.log('Slot Info:', slotInfo)
+    
+    // Format date properly
+    const slotDate = slotInfo.date ? new Date(slotInfo.date).toISOString().split('T')[0] : null
+    console.log('Formatted slot date:', slotDate)
+    
+    if (!slotDate) {
+      return res.status(400).json({ error: 'Invalid slot date' })
+    }
+    
+    // Format time for matching
+    const formatTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':')
+      const hour = parseInt(h || '0')
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const mins = m === '00' ? '' : `:${m}`
+      return `${hour12}${mins}${ampm}`
+    }
+    
+    const slotTime = `${formatTime(slotInfo.start_time)} - ${formatTime(slotInfo.end_time)}`
+    console.log('Formatted slot time:', slotTime)
+    
+    // Find all appointments in this slot
+    const [appointments] = await pool.query(
+      `SELECT * FROM appointments 
+       WHERE doctor = ? AND status IN ('confirmed', 'accepted', 'pending')`,
+      [slotInfo.doctor_name]
+    ) as any
+    
+    // Filter by date manually to handle timezone issues
+    const dateFilteredAppointments = appointments.filter((apt: any) => {
+      const aptDate = new Date(apt.date).toISOString().split('T')[0]
+      console.log(`Comparing dates: apt=${aptDate} vs slot=${slotDate}`)
+      return aptDate === slotDate
+    })
+    
+    console.log('Found appointments:', appointments.length)
+    console.log('Date filtered appointments:', dateFilteredAppointments.length)
+    console.log('Appointments:', dateFilteredAppointments)
+    
+    // Filter appointments that match this time slot
+    const affectedAppointments = dateFilteredAppointments.filter((apt: any) => {
+      const aptTime = apt.time_slot.replace(/\s*\[\d+\/\d+\]\s*$/, '').replace(/\s+/g, '').toUpperCase()
+      const slotTimeNorm = slotTime.replace(/\s+/g, '').toUpperCase()
+      console.log(`Comparing: "${aptTime}" === "${slotTimeNorm}"`)
+      return aptTime === slotTimeNorm
+    })
+    
+    console.log('Affected appointments:', affectedAppointments.length)
+    
+    // Update all affected appointments status and notify patients
+    for (const apt of affectedAppointments) {
+      console.log(`Marking appointment ${apt.id} for ${apt.patient_name} (${apt.phone}) as doctor not available`)
+      
+      await pool.query(
+        'UPDATE appointments SET status = ? WHERE id = ?',
+        ['doctor_not_available', apt.id]
+      )
+      
+      await sendText(
+        apt.phone,
+        `⚠️ Doctor Not Available\n\nHello ${apt.patient_name},\n\nYour doctor is not available for the scheduled appointment:\n👨⚕️ Doctor: ${apt.doctor}\n📅 Date: ${formatDate(apt.date)}\n🕐 Time: ${apt.time_slot}\n\nPlease book another available slot.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"\n\nWe apologize for the inconvenience.`
+      )
+    }
+    
+    console.log('Slot marked as not available successfully')
+    console.log('=======================================\n')
+    
+    res.json({ 
+      success: true, 
+      message: 'Slot marked as not available', 
+      notifiedPatients: affectedAppointments.length 
+    })
+  } catch (error) {
+    console.error('Error marking slot as not available:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router
