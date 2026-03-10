@@ -9,6 +9,14 @@ export type BookingState =
   | 'cancel_appointment'
   | 'cancel_confirm'
   | 'cancel_final'
+  | 'reschedule_select'
+  | 'reschedule_confirm'
+  | 'reschedule_start'
+  | 'reschedule_category'
+  | 'reschedule_doctor'
+  | 'reschedule_date'
+  | 'reschedule_time'
+  | 'reschedule_final'
 
 interface Session {
   state: BookingState
@@ -21,6 +29,10 @@ interface Session {
     timeSlotId: number | undefined
     name: string | undefined
     cancelId: number | undefined
+    rescheduleId: number | undefined
+    oldDoctor: string | undefined
+    oldDate: string | undefined
+    oldTime: string | undefined
   }
 }
 
@@ -37,7 +49,11 @@ export function getSession(phone: string): Session {
       time: undefined,
       timeSlotId: undefined,
       name: undefined,
-      cancelId: undefined
+      cancelId: undefined,
+      rescheduleId: undefined,
+      oldDoctor: undefined,
+      oldDate: undefined,
+      oldTime: undefined
     }
   }
 }

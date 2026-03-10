@@ -15,7 +15,9 @@ function TodayAppointments() {
     try {
       const res = await fetch(`${API_URL}/admin/appointments/today`)
       const data = await res.json()
-      setBookings(data.bookings || [])
+      console.log('Today bookings data:', data)
+      console.log('Bookings array:', data.bookings || data.appointments)
+      setBookings(data.bookings || data.appointments || [])
     } catch (error) {
       console.error(error)
     }
@@ -31,6 +33,35 @@ function TodayAppointments() {
     } catch (error) {
       alert('Error marking as visited')
     }
+  }
+
+  const handleMarkNoShow = async (id) => {
+    if (!confirm('Mark this patient as Not Visited? A reschedule message will be sent.')) return
+    try {
+      await fetch(`${API_URL}/admin/appointments/${id}/no-show`, { method: 'POST' })
+      alert('Marked as Not Visited and message sent!')
+      fetchTodayBookings()
+    } catch (error) {
+      alert('Error marking as not visited')
+    }
+  }
+
+  const isAppointmentPassed = (timeSlot) => {
+    console.log('Checking time slot:', timeSlot)
+    const [, endTime] = timeSlot.split('-').map(t => t.trim())
+    console.log('End time:', endTime)
+    const isPM = endTime.toLowerCase().includes('pm')
+    const isAM = endTime.toLowerCase().includes('am')
+    let [hours, minutes] = endTime.replace(/[apm\s]/gi, '').split(':').map(Number)
+    
+    if (isPM && hours !== 12) hours += 12
+    if (isAM && hours === 12) hours = 0
+    
+    const now = new Date()
+    const appointmentEnd = new Date()
+    appointmentEnd.setHours(hours, minutes || 0, 0, 0)
+    console.log('Now:', now, 'Appointment end:', appointmentEnd, 'Passed:', now > appointmentEnd)
+    return now > appointmentEnd
   }
 
   const groupedBySession = bookings.reduce((acc, booking) => {
@@ -107,22 +138,41 @@ function TodayAppointments() {
                           </span>
                         </td>
                         <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                          {booking.status !== 'visited' && (
-                            <button 
-                              onClick={() => handleMarkVisited(booking.id)} 
-                              style={{ 
-                                padding: '8px 16px', 
-                                backgroundColor: '#10b981', 
-                                color: 'white', 
-                                border: 'none', 
-                                borderRadius: '6px', 
-                                cursor: 'pointer', 
-                                fontWeight: '600', 
-                                fontSize: '13px' 
-                              }}
-                            >
-                              ✅ Mark Visited
-                            </button>
+                          {(booking.status === 'active' || booking.status === 'confirmed') && (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button 
+                                onClick={() => handleMarkVisited(booking.id)} 
+                                style={{ 
+                                  padding: '8px 16px', 
+                                  backgroundColor: '#10b981', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: '6px', 
+                                  cursor: 'pointer', 
+                                  fontWeight: '600', 
+                                  fontSize: '13px' 
+                                }}
+                              >
+                                ✅ Mark Visited
+                              </button>
+                              {isAppointmentPassed(booking.time_slot) && (
+                                <button 
+                                  onClick={() => handleMarkNoShow(booking.id)} 
+                                  style={{ 
+                                    padding: '8px 16px', 
+                                    backgroundColor: '#ef4444', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    fontWeight: '600', 
+                                    fontSize: '13px' 
+                                  }}
+                                >
+                                  ❌ Not Visited
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

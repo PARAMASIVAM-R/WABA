@@ -5,10 +5,11 @@ A production-ready WhatsApp chatbot for booking doctor appointments using WhatsA
 ## 🎯 Key Features
 
 ### Patient Features
-- **Service Menu** - Welcome menu with Book, Cancel, and Restart options
+- **Service Menu** - Welcome menu with Book, Cancel, Reschedule, and Restart options
 - **Interactive Booking** - Step-by-step appointment booking with WhatsApp buttons and lists
 - **Instant Confirmation** - Patients confirm appointments directly (no manual approval needed)
 - **Self-Service Cancellation** - Cancel appointments with 2-hour deadline policy
+- **Self-Service Rescheduling** - Reschedule appointments with 2-hour deadline policy
 - **Automated Reminders** - Daily reminders sent at 6 PM for next day appointments
 - **Real-Time Availability** - Shows booked/capacity ratio for each time slot
 
@@ -26,13 +27,12 @@ A production-ready WhatsApp chatbot for booking doctor appointments using WhatsA
 ```
 User types: "hi" or "hello"
   ↓
-Bot shows menu:
+Bot shows [Interactive Buttons]:
 📋 Welcome! Choose a service:
-1️⃣ Book - Schedule new appointment
-2️⃣ Cancel - Cancel existing appointment
-3️⃣ Restart - Start over
 
-User types: "book"
+[📅 Book] [❌ Cancel] [🔄 Reschedule] [🔁 Restart]
+
+User clicks: [📅 Book]
 ```
 
 ### 2. Booking Process
@@ -100,7 +100,66 @@ Bot: ✅ Appointment cancelled successfully!
      The slot is now available for others.
 ```
 
-### 4. Automated Reminders
+### 4. Reschedule Flow
+```
+User clicks: [🔄 Reschedule]
+  ↓
+Bot: [Interactive List] Your Appointments
+     Example: "Dr. Anil Verma 15/01 9AM"
+     (Only shows appointments >2 hours away)
+  ↓
+User: Selects appointment
+  ↓
+Bot: [Interactive Buttons]
+     🔄 Reschedule this appointment?
+     
+     Current Details:
+     👨‍⚕️ Dr. Anil Verma
+     📅 15/01
+     🕐 9AM - 10AM
+     
+     [✅ Yes, Reschedule] [❌ No, Keep It]
+  ↓
+User: Clicks [✅ Yes, Reschedule]
+  ↓
+Bot: Starts booking flow:
+     - [Interactive List] Select Category
+     - [Interactive List] Select Doctor
+     - [Interactive List] Select Date
+     - [Interactive List] Select Time Slot (only available slots)
+     (Name is auto-filled from existing appointment)
+  ↓
+Bot: [Interactive Buttons]
+     🔄 Reschedule Confirmation:
+     
+     ❌ OLD:
+     👨‍⚕️ Dr. Anil Verma
+     📅 15/01
+     🕐 9AM - 10AM
+     
+     ✅ NEW:
+     👨‍⚕️ Dr. Michael Brown
+     📅 16/01
+     🕐 2PM - 3PM
+     
+     [✅ Confirm] [❌ Cancel]
+  ↓
+User: Clicks [✅ Confirm]
+  ↓
+Bot: ✅ Appointment Rescheduled Successfully!
+     
+     📋 New Details:
+     👤 Name: John Doe
+     🏥 Category: Cardiology
+     👨‍⚕️ Doctor: Dr. Michael Brown
+     📅 Date: 16/01
+     🕐 Time: 2PM - 3PM
+     
+     Your appointment has been updated!
+     Please arrive 10 minutes early. 🙏
+```
+
+### 5. Automated Reminders
 ```
 Daily at 6 PM:
 Bot sends to patients with appointments tomorrow:
@@ -307,6 +366,15 @@ Copy HTTPS URL (e.g., `https://abc123.ngrok-free.app`)
 - Only shows cancellable appointments
 - Filters past dates automatically
 - Frees up slot capacity immediately
+
+### Rescheduling Policy
+- 2-hour deadline before appointment time
+- Only shows reschedulable appointments
+- Shows only available slots (excludes full slots)
+- Filters past time slots for today
+- Updates existing appointment (same ID)
+- Old slot freed, new slot booked
+- No name re-entry required
 
 ### Automated Reminders
 - Cron job runs daily at 6 PM (schedule: '0 18 * * *')
