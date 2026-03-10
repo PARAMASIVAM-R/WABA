@@ -384,10 +384,9 @@ export async function processBookingMessage(message: {
               const aptDate = new Date(apt.date)
               const formattedDate = aptDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
               const [startTime] = apt.time_slot.split(' - ')
-              const doctorShort = apt.doctor.split(' ')[0] || apt.doctor
               return {
                 id: apt.id.toString(),
-                title: `Dr.${doctorShort} ${formattedDate} ${startTime} ${apt.patient_name}`.substring(0, 24)
+                title: `${formattedDate} ${startTime} - ${apt.patient_name}`.substring(0, 24)
               }
             })
           }]
@@ -504,10 +503,9 @@ export async function processBookingMessage(message: {
               const aptDate = new Date(apt.date)
               const formattedDate = aptDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
               const [startTime] = apt.time_slot.split(' - ')
-              const doctorShort = apt.doctor.split(' ')[0] || apt.doctor
               return {
                 id: apt.id.toString(),
-                title: `Dr.${doctorShort} ${formattedDate} ${startTime} ${apt.patient_name}`.substring(0, 24)
+                title: `${formattedDate} ${startTime} - ${apt.patient_name}`.substring(0, 24)
               }
             })
           }]
