@@ -5,6 +5,8 @@ import inviteRouter from './routes/invite.route'
 import appointmentsRouter from './routes/appointments.route'
 import adminRouter from './routes/admin.route'
 import followupRouter from './routes/followup.route'
+import authRouter from './routes/auth.route'
+import { requireAuth } from './core/auth.middleware'
 
 const app = express()
 app.use(cors())
@@ -23,10 +25,11 @@ app.get('/ping', (req, res) => {
   res.status(200).send('pong')
 })
 
+app.use('/auth', authRouter)
 app.use('/webhooks/whatsapp', whatsappRouter)
 app.use('/invite', inviteRouter)
-app.use('/appointments', appointmentsRouter)
-app.use('/admin/appointments', adminRouter)
-app.use('/admin/followups', followupRouter)
+app.use('/appointments', requireAuth, appointmentsRouter)
+app.use('/admin/appointments', requireAuth, adminRouter)
+app.use('/admin/followups', requireAuth, followupRouter)
 
 export default app

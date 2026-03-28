@@ -27,12 +27,12 @@ export async function processBookingMessage(message: {
   const phone = message.from
   const input = message.text.toLowerCase()
 
-  const session = getSession(phone)
+  const session = await getSession(phone)
   let response = ''
 
   // Check for restart keywords at any point in conversation
   if (input === 'hi' || input === 'hello' || input === 'book' || input.includes('book appointment')) {
-    clearSession(phone)
+    await clearSession(phone)
     session.state = 'idle'
   }
 
@@ -188,8 +188,8 @@ export async function processBookingMessage(message: {
       actualDate.setDate(actualDate.getDate() + dateIndex)
       const formattedDate = actualDate.toISOString().split('T')[0] // YYYY-MM-DD
       
-      session.data.date = formattedDate as string | undefined
-      session.data.dateDisplay = input as string | undefined
+      session.data.date = formattedDate
+      session.data.dateDisplay = input
       
       const catForSlots = await getCategories()
       const categoryObj = catForSlots.find(c => c.name === session.data.category)
@@ -222,7 +222,7 @@ export async function processBookingMessage(message: {
         if (slots.length === 0) {
           response = 'No time slots available for this doctor on the selected date.\n\nTo book a new appointment, please type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
           break
         }
         
@@ -283,7 +283,7 @@ export async function processBookingMessage(message: {
       if (timeSlots.length === 0) {
         response = 'All seats are filled for this date.\n\nTo book another date, please type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
         break
       }
       
@@ -340,11 +340,11 @@ export async function processBookingMessage(message: {
         const displayDate2 = session.data.dateDisplay || session.data.date || 'N/A'
         response = `✅ Appointment Confirmed!\n\n📋 Details:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDate2}\n🕐 Time: ${session.data.time}\n\n✅ Status: Confirmed\n\nYour appointment is confirmed! Please arrive 10 minutes early.\n\nThank you! 🙏`
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
       } else if (input === 'cancel') {
         response = '❌ Appointment cancelled.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
       } else {
         response = '❌ Please type "confirm" to book or "cancel" to cancel.'
         await sendText(phone, response)
@@ -370,7 +370,7 @@ export async function processBookingMessage(message: {
         if (appointments.length === 0) {
           response = '❌ No appointments available for cancellation.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
           break
         }
         
@@ -459,14 +459,14 @@ export async function processBookingMessage(message: {
           
           response = '✅ Appointment cancelled successfully!\n\nYour slot has been freed for other patients.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
         } finally {
           await pool4.end()
         }
       } else {
         response = '✅ Appointment kept! Your booking is still active.\n\n💡 To book another appointment, type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
       }
       break
 
@@ -489,7 +489,7 @@ export async function processBookingMessage(message: {
         if (appointmentsR.length === 0) {
           response = '❌ No appointments available for rescheduling.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
           break
         }
         
@@ -586,7 +586,7 @@ export async function processBookingMessage(message: {
       } else {
         response = '✅ Appointment kept! Your booking is still active.\n\n💡 To book another appointment, type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
       }
       break
 
@@ -659,8 +659,8 @@ export async function processBookingMessage(message: {
       actualDateR.setDate(actualDateR.getDate() + dateIndexR)
       const formattedDateR = actualDateR.toISOString().split('T')[0]
       
-      session.data.date = formattedDateR as string | undefined
-      session.data.dateDisplay = input as string | undefined
+      session.data.date = formattedDateR
+      session.data.dateDisplay = input
       
       const catForSlotsR = await getCategories()
       const categoryObjR = catForSlotsR.find(c => c.name === session.data.category)
@@ -691,7 +691,7 @@ export async function processBookingMessage(message: {
         if (slotsR.length === 0) {
           response = '❌ No time slots available for this doctor on the selected date.\n\n💡 To book a new appointment, please type:\n• "hi" or "hello" or "book"'
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
           break
         }
         
@@ -743,7 +743,7 @@ export async function processBookingMessage(message: {
       if (timeSlotsR.length === 0) {
         response = '❌ All seats are filled for this date.\n\n💡 To book another date, please type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
         break
       }
       
@@ -799,14 +799,14 @@ export async function processBookingMessage(message: {
           const displayDateFinal = session.data.dateDisplay || session.data.date || 'N/A'
           response = `✅ Appointment Rescheduled Successfully!\n\n📋 New Details:\n👤 Name: ${session.data.name}\n🏥 Category: ${session.data.category}\n👨⚕️ Doctor: ${session.data.doctor}\n📅 Date: ${displayDateFinal}\n🕐 Time: ${session.data.time}\n\nYour appointment has been updated! Please arrive 10 minutes early.\n\nThank you! 🙏`
           await sendText(phone, response)
-          clearSession(phone)
+          await clearSession(phone)
         } finally {
           await poolR4.end()
         }
       } else if (input === 'cancel' || input.includes('cancel')) {
         response = '❌ Reschedule cancelled. Your original appointment is still active.\n\n💡 To book a new appointment, type:\n• "hi" or "hello" or "book"'
         await sendText(phone, response)
-        clearSession(phone)
+        await clearSession(phone)
       } else {
         response = '❌ Please click a button to confirm or cancel.'
         await sendText(phone, response)
@@ -814,6 +814,6 @@ export async function processBookingMessage(message: {
       break
   }
 
-  saveSession(phone, session)
+  await saveSession(phone, session)
   return response
 }

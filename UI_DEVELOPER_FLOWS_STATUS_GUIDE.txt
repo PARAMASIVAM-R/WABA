@@ -1,0 +1,344 @@
+================================================================================
+                    WABA SYSTEM FLOWS & STATUS CHANGES
+                        UI DEVELOPER REFERENCE GUIDE
+================================================================================
+
+PURPOSE: This document maps all system flows with their corresponding status 
+changes to help UI developers understand state transitions and implement 
+proper status management in the interface.
+
+================================================================================
+                            APPOINTMENT STATUS LIFECYCLE
+================================================================================
+
+Status Values:
+- pending       → Initial state (not used in current flow)
+- confirmed     → Patient confirmed booking via WhatsApp
+- accepted      → Admin accepted the appointment
+- visited       → Patient arrived at clinic
+- completed     → Consultation finished
+- cancelled     → Appointment cancelled (by patient or admin)
+- rejected      → Admin rejected the appointment (not used in current flow)
+- no_show       → Patient didn't show up (Not visited)
+- cancelled_by_hospital → Hospital cancelled the appointment
+- doctor_not_available  → Doctor unavailable for appointment
+
+================================================================================
+                                FLOW 1: PATIENT BOOKING
+================================================================================
+
+WHATSAPP CONVERSATION FLOW → DATABASE STATUS CHANGES
+
+Step 1: Service Menu
+├── User Input: "hi", "hello", "book"
+├── Session State: idle → booking_category
+└── Status Change: NONE (no appointment created yet)
+
+Step 2: Category Selection
+├── User Action: Selects medical category9i
+├── Session State: booking_category → booking_doctor
+└── Status Change: NONE (no appointment created yet)
+
+Step 3: Doctor Selection
+├── User Action: Selects doctor
+├── Session State: booking_doctor → booking_date
+└── Status Change: NONE (no appointment created yet)
+
+Step 4: Date Selection
+├── User Action: Selects date
+├── Session State: booking_date → booking_time
+└── Status Change: NONE (no appointment created yet)
+
+Step 5: Time Selection
+├── User Action: Selects time slot
+├── Session State: booking_time → booking_name
+└── Status Change: NONE (no appointment created yet)
+
+Step 6: Name Entry
+├── User Action: Enters full name
+├── Session State: booking_name → booking_confirm
+└── Status Change: NONE (no appointment created yet)
+
+Step 7: Final Confirmation
+├── User Action: Clicks "Confirm" button
+├── Session State: booking_confirm → idle (session cleared)
+└── Status Change: NEW RECORD CREATED with status = "confirmed"
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Show "confirmed" status immediately after booking
+- Display confirmation message with appointment details
+- Update slot capacity counters in real-time
+- Clear any booking form data after confirmation
+
+================================================================================
+                            FLOW 2: APPOINTMENT CANCELLATION
+================================================================================
+
+WHATSAPP CONVERSATION FLOW → DATABASE STATUS CHANGES
+
+Step 1: Cancel Request
+├── User Input: "cancel" or selects "Cancel Appointment"
+├── Session State: idle → cancel_appointment
+└── Status Change: NONE (querying existing appointments)
+
+Step 2: Appointment Selection
+├── User Action: Selects appointment from list
+├── Session State: cancel_appointment → cancel_confirm
+└── Status Change: NONE (showing confirmation)
+
+Step 3: Cancellation Confirmation
+├── User Action: Clicks "Yes, Cancel"
+├── Session State: cancel_confirm → cancel_final
+└── Status Change: NONE (processing confirmation)
+
+Step 4: Final Processing
+├── User Action: Confirms cancellation
+├── Session State: cancel_final → idle (session cleared)
+└── Status Change: "confirmed/accepted" → "cancelled"
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Filter appointments: only show "confirmed" and "accepted" status
+- Apply 2-hour cancellation policy in UI
+- Update appointment list immediately after cancellation
+- Show "cancelled" status with appropriate styling (red background)
+- Recalculate and update slot capacity counters
+- Remove cancelled appointments from active appointment views
+
+================================================================================
+                            FLOW 3: APPOINTMENT RESCHEDULING
+================================================================================
+
+WHATSAPP CONVERSATION FLOW → DATABASE STATUS CHANGES
+
+Step 1: Reschedule Request
+├── User Input: "reschedule" or selects "Reschedule Appointment"
+├── Session State: idle → reschedule_select
+└── Status Change: NONE (querying existing appointments)
+
+Step 2: Appointment Selection
+├── User Action: Selects appointment to reschedule
+├── Session State: reschedule_select → reschedule_confirm
+└── Status Change: NONE (showing confirmation)
+
+Step 3: Reschedule Confirmation
+├── User Action: Clicks "Yes, Reschedule"
+├── Session State: reschedule_confirm → reschedule_start
+└── Status Change: NONE (starting new booking process)
+
+Step 4-7: New Booking Process
+├── User Actions: Category → Doctor → Date → Time selection
+├── Session States: reschedule_category → reschedule_doctor → reschedule_date → reschedule_time
+└── Status Change: NONE (collecting new appointment data)
+
+Step 8: Final Reschedule Confirmation
+├── User Action: Clicks "Confirm" for new slot
+├── Session State: reschedule_final → idle (session cleared)
+└── Status Change: UPDATES EXISTING RECORD (same ID) with new details, status remains same
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Filter appointments: show "confirmed", "accepted", "no_show" status
+- Apply 2-hour rescheduling policy in UI
+- Update appointment details in-place (same record ID)
+- Show before/after comparison in UI
+- Update slot capacity for both old and new slots
+- Maintain original appointment status during reschedule
+- Show updated appointment details immediately
+
+================================================================================
+                            FLOW 4: AUTOMATED REMINDERS
+================================================================================
+
+CRON JOB FLOW → DATABASE STATUS CHANGES
+
+Daily at 6:00 PM:
+├── System Action: Query next day's appointments
+├── Filter: status IN ('confirmed', 'accepted', 'visited')
+├── Action: Send WhatsApp reminder messages
+└── Status Change: NONE (reminders don't change appointment status)
+
+Reminder Response Handling:
+├── User Response: "reminder_confirm_[appointmentId]"
+├── Action: Send acknowledgment message
+└── Status Change: NONE (confirmation doesn't change status)
+
+├── User Response: "reminder_cancel_[appointmentId]"
+├── Action: Cancel appointment from reminder
+└── Status Change: "confirmed/accepted" → "cancelled"
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Show reminder sent indicator in appointment list
+- Track reminder delivery status if needed
+- Handle cancellations from reminders (update status to "cancelled")
+- Display reminder history in appointment details
+
+================================================================================
+                            FLOW 5: ADMIN STATUS MANAGEMENT
+================================================================================
+
+ADMIN DASHBOARD ACTIONS → DATABASE STATUS CHANGES
+
+
+Today's Visits Tab - Status Progression:
+├── Admin Action: Mark as "Visited"
+├── UI State: accepted → visited
+└── Status Change: "accepted" → "visited"
+
+├── Admin Action: Mark as "Completed"
+├── UI State: visited → completed
+└── Status Change: "visited" → "completed"
+
+├── Admin Action: Mark as "No Show" (Not visited)
+├── UI State: any status → no_show
+└── Status Change: current_status → "no_show"
+
+Doctor Calendar Tab:
+├── Admin Action: View weekly calendar
+├── UI State: Display appointments by status
+└── Status Change: NONE (read-only view)
+
+Follow-ups Tab:
+├── Admin Action: Create follow-up
+├── UI State: Add new follow-up record
+└── Status Change: followup.status = "pending"
+
+├── Admin Action: Send follow-up
+├── UI State: pending → sent
+└── Status Change: followup.status = "sent", sent_at = NOW()
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Implement status-based button visibility
+- Show appropriate action buttons based on current status
+- Use color coding for different statuses
+- Implement status progression workflow
+- Show status history/timeline if needed
+- Real-time updates when status changes
+
+================================================================================
+                        STATUS-BASED UI STYLING GUIDE
+================================================================================
+
+Status Color Coding (from current implementation):
+
+confirmed     → Blue background (#dbeafe), Blue text (#1e40af)
+accepted      → Blue background (#dbeafe), Blue text (#1e40af)  
+visited       → Indigo background (#e0e7ff), Indigo text (#3730a3)
+completed     → Green background (#d1fae5), Green text (#065f46)
+cancelled     → Red background (#fee2e2), Red text (#991b1b)
+rejected      → Red background (#fee2e2), Red text (#991b1b)
+no_show       → Red background (#fee2e2), Red text (#991b1b)
+cancelled_by_hospital → Yellow background (#fef3c7), Yellow text (#92400e)
+doctor_not_available  → Yellow background (#fef3c7), Yellow text (#92400e)
+pending       → Purple background (#f3e8ff), Purple text (#7c3aed)
+
+Button Visibility Rules:
+- "Accept/Reject/Change Slot" → Only show for "pending" status
+- "Follow-up" → Show for all statuses except "pending"
+- Status progression buttons → Show based on current status in sequence
+
+================================================================================
+                            CAPACITY MANAGEMENT FLOWS
+================================================================================
+
+Slot Capacity Updates:
+
+New Booking:
+├── Action: Patient confirms appointment
+├── Capacity Change: available_spots - 1
+└── UI Update: Update slot display "[X/Y]" format
+
+Cancellation:
+├── Action: Appointment cancelled
+├── Capacity Change: available_spots + 1
+└── UI Update: Update slot display "[X/Y]" format
+
+Rescheduling:
+├── Action: Appointment rescheduled
+├── Old Slot: available_spots + 1
+├── New Slot: available_spots - 1
+└── UI Update: Update both slot displays
+
+Status Changes (No Capacity Impact):
+├── confirmed → accepted: No capacity change
+├── accepted → visited: No capacity change
+├── visited → completed: No capacity change
+├── any_status → no_show: No capacity change
+└── UI Update: Only status display changes
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Real-time capacity counter updates
+- Hide fully booked slots from booking interface
+- Show capacity warnings when slots are nearly full
+- Update slot availability immediately after any booking change
+
+================================================================================
+                            ERROR HANDLING & EDGE CASES
+================================================================================
+
+Session Management:
+├── Session Timeout: Clear session, return to idle state
+├── Invalid Input: Stay in current state, show error message
+├── Restart Command: Clear session, return to service menu
+└── UI Update: Reset all form states, clear temporary data
+
+Database Conflicts:
+├── Slot Overbooking: Show error, refresh slot availability
+├── Appointment Not Found: Show error message, refresh list
+├── Status Conflict: Refresh appointment data, show current status
+└── UI Update: Show error notifications, refresh affected views
+
+Network Issues:
+├── WhatsApp API Failure: Queue message for retry
+├── Database Connection Loss: Show maintenance message
+├── Webhook Timeout: Log error, continue processing
+└── UI Update: Show connection status, retry mechanisms
+
+UI IMPLICATIONS FOR DEVELOPERS:
+- Implement proper error boundaries
+- Show loading states during API calls
+- Handle network failures gracefully
+- Provide retry mechanisms for failed operations
+- Show appropriate error messages to users
+
+================================================================================
+                            DEVELOPMENT RECOMMENDATIONS
+================================================================================
+
+Real-time Updates:
+- Implement WebSocket or Server-Sent Events for live updates
+- Auto-refresh appointment lists when status changes
+- Show real-time slot availability updates
+- Notify admins of new bookings immediately
+
+State Management:
+- Use proper state management (Redux/Context) for complex flows
+- Implement optimistic updates for better UX
+- Cache frequently accessed data (doctors, categories, slots)
+- Handle concurrent user actions properly
+
+User Experience:
+- Show loading indicators during status changes
+- Implement undo functionality for accidental actions
+- Add confirmation dialogs for destructive actions
+- Provide clear feedback for all user actions
+
+Performance:
+- Implement pagination for large appointment lists
+- Use virtual scrolling for long lists
+- Optimize re-renders with proper memoization
+- Implement proper caching strategies
+
+Accessibility:
+- Add proper ARIA labels for status indicators
+- Implement keyboard navigation
+- Ensure color contrast meets accessibility standards
+- Provide screen reader friendly status announcements
+
+================================================================================
+                                END OF DOCUMENT
+================================================================================
+
+Document Purpose: UI Developer Reference for Status Management
+Last Updated: $(Get-Date)
+Total Flows Documented: 5 major flows + capacity management
+Status Transitions: 10 different status values with transition rules
+UI Components Affected: Dashboard, Calendar, Forms, Lists, Buttons

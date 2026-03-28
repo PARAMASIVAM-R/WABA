@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const API_URL = 'http://localhost:3000'
@@ -6,40 +5,8 @@ const WHATSAPP_NUMBER = '15551865740'
 
 function Landing() {
   const navigate = useNavigate()
-  const [doctors, setDoctors] = useState([])
-  const [stats, setStats] = useState({ appointments: 0, doctors: 0 })
-
-  useEffect(() => {
-    fetchDoctors()
-    fetchStats()
-  }, [])
-
-  const fetchDoctors = async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/appointments/doctors`)
-      const data = await res.json()
-      setDoctors((data.doctors || []).slice(0, 6))
-    } catch (error) {
-      console.error('Error fetching doctors')
-    }
-  }
-
-  const fetchStats = async () => {
-    try {
-      const [appointmentsRes, doctorsRes] = await Promise.all([
-        fetch(`${API_URL}/appointments`),
-        fetch(`${API_URL}/admin/appointments/doctors`)
-      ])
-      const appointmentsData = await appointmentsRes.json()
-      const doctorsData = await doctorsRes.json()
-      setStats({
-        appointments: (appointmentsData.appointments || appointmentsData || []).length,
-        doctors: (doctorsData.doctors || []).length
-      })
-    } catch (error) {
-      console.error('Error fetching stats')
-    }
-  }
+  const doctors = []
+  const stats = { appointments: 500, doctors: 20 }
 
   const openWhatsApp = () => {
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=Hi`, '_blank')

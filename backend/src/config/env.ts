@@ -9,7 +9,9 @@ export const env = {
   dbHost: process.env.DB_HOST!,
   dbUser: process.env.DB_USER!,
   dbPassword: process.env.DB_PASSWORD!,
-  dbName: process.env.DB_NAME!
+  dbName: process.env.DB_NAME!,
+  jwtSecret: process.env.JWT_SECRET || 'change-me-in-production',
+  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379'
 }
 
 if (!env.verifyToken || !env.accessToken || !env.phoneNumberId) {

@@ -1,3 +1,6 @@
+import Redis from 'ioredis'
+import { env } from '../config/env'
+
 export type BookingState =
   | 'idle'
   | 'booking_category'
@@ -18,50 +21,103 @@ export type BookingState =
   | 'reschedule_time'
   | 'reschedule_final'
 
-interface Session {
+export interface Session {
   state: BookingState
+  hospital_id: number
   data: {
-    category: string | undefined
-    doctor: string | undefined
-    date: string | undefined
-    dateDisplay: string | undefined
-    time: string | undefined
-    timeSlotId: number | undefined
-    name: string | undefined
-    cancelId: number | undefined
-    rescheduleId: number | undefined
-    oldDoctor: string | undefined
-    oldDate: string | undefined
-    oldTime: string | undefined
+    category?: string
+    doctor?: string
+    date?: string
+    dateDisplay?: string
+    time?: string
+    timeSlotId?: number
+    name?: string
+    cancelId?: number
+    rescheduleId?: number
+    oldDoctor?: string
+    oldDate?: string
+    oldTime?: string
   }
 }
 
-const sessions = new Map<string, Session>()
+const SESSION_TTL = 60 * 30 // 30 minutes
 
-export function getSession(phone: string): Session {
-  return sessions.get(phone) || { 
-    state: 'idle', 
-    data: {
-      category: undefined,
-      doctor: undefined,
-      date: undefined,
-      dateDisplay: undefined,
-      time: undefined,
-      timeSlotId: undefined,
-      name: undefined,
-      cancelId: undefined,
-      rescheduleId: undefined,
-      oldDoctor: undefined,
-      oldDate: undefined,
-      oldTime: undefined
+// ── In-memory fallback ────────────────────────────────────────────────────────
+const memoryStore = new Map<string, Session>()
+
+function emptySession(): Session {
+  return { state: 'idle', hospital_id: 0, data: {} }
+}
+
+// ── Redis (optional) ──────────────────────────────────────────────────────────
+let redis: Redis | null = null
+let redisReady = false
+
+function initRedis() {
+  const client = new Redis(env.redisUrl, {
+    lazyConnect: true,
+    enableOfflineQueue: false,
+    retryStrategy: () => null, // don't retry — fall back to memory
+  })
+
+  client.on('ready', () => {
+    redisReady = true
+    console.log('✅ Redis connected — using Redis for sessions')
+  })
+
+  client.on('error', () => {
+    if (redisReady) {
+      redisReady = false
+      console.warn('⚠️  Redis disconnected — falling back to in-memory sessions')
+    }
+  })
+
+  client.connect().catch(() => {
+    console.warn('⚠️  Redis unavailable — using in-memory sessions (fine for local dev)')
+  })
+
+  return client
+}
+
+redis = initRedis()
+
+function sessionKey(phone: string) {
+  return `session:${phone}`
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+export async function getSession(phone: string): Promise<Session> {
+  if (redisReady && redis) {
+    try {
+      const raw = await redis.get(sessionKey(phone))
+      return raw ? JSON.parse(raw) : emptySession()
+    } catch {
+      // fall through to memory
     }
   }
+  return memoryStore.get(phone) ?? emptySession()
 }
 
-export function saveSession(phone: string, session: Session) {
-  sessions.set(phone, session)
+export async function saveSession(phone: string, session: Session) {
+  if (redisReady && redis) {
+    try {
+      await redis.set(sessionKey(phone), JSON.stringify(session), 'EX', SESSION_TTL)
+      return
+    } catch {
+      // fall through to memory
+    }
+  }
+  memoryStore.set(phone, session)
 }
 
-export function clearSession(phone: string) {
-  sessions.delete(phone)
+export async function clearSession(phone: string) {
+  if (redisReady && redis) {
+    try {
+      await redis.del(sessionKey(phone))
+      return
+    } catch {
+      // fall through to memory
+    }
+  }
+  memoryStore.delete(phone)
 }
